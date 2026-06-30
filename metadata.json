@@ -1,0 +1,5 @@
+{
+  "name": "FileTransfer Pro",
+  "description": "A high-speed client-server file transfer application with admin and user roles.",
+  "requestFramePermissions": []
+}
