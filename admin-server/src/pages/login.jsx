@@ -59,6 +59,40 @@ const inputStyle = {
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [serverStatus, setServerStatus] = useState("checking");
+
+  useEffect(() => {
+    const fetchServerStatus = async () => {
+      try {
+        const statusResponse = await fetch("http://localhost:3001/api/health");
+        const statusData = await response.json();
+
+        if (statusData === "ok") {
+          setServerStatus("ok");
+        } else {
+          setServerStatus("error");
+        }
+      } catch (error) {
+        setServerStatus("error"); // если бек выключен
+      }
+    };
+
+    fetchServerStatus();
+    const statusCheckInterval = setInterval(fetchServerStatus, 5000);
+  }, []);
+
+  const getADMServerStatus = () => {
+    switch (serverStatus) {
+      case "ok":
+        return { text: "Server Online", color: "#4caf50" };
+      case "error":
+        return { text: "Server Offline", color: "#f44336" };
+      case "checking":
+        return { text: "Checking server status", color: "#ffeb3b" };
+    }
+  };
+
+  const status = getADMServerStatus();
 
   const handleSubmit = (e) => {
     e.preventDefault();
