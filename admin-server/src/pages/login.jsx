@@ -79,6 +79,7 @@ export default function Login() {
 
     fetchServerStatus();
     const statusCheckInterval = setInterval(fetchServerStatus, 5000);
+    return () => clearInterval(statusCheckInterval); // очистка, интервалы между сессиями почему-то складывались
   }, []);
 
   const getADMServerStatus = () => {
