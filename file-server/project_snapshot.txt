@@ -1,0 +1,2792 @@
+
+==================================================
+FILE: .\check-users.ts
+==================================================
+
+import db from './src/db.js';
+
+const users = db.prepare('SELECT id, username, role FROM users').all();
+console.log('Users:', users);
+
+
+==================================================
+FILE: .\import-files.ts
+==================================================
+
+import db from "./src/db.js";
+import fs from "fs";
+import path from "path";
+
+const uploadsDir = path.join(process.cwd(), "uploads");
+
+if (!fs.existsSync(uploadsDir)) {
+  console.log("Uploads directory does not exist.");
+  process.exit(1);
+}
+
+const files = fs.readdirSync(uploadsDir);
+let importedCount = 0;
+
+console.log(`Found ${files.length} files in uploads directory.`);
+
+// Получите существующие пути к файлам из базы данных
+const existingPaths = new Set(
+  db
+    .prepare("SELECT file_path FROM transfers WHERE file_path IS NOT NULL")
+    .all()
+    .map((row: any) => row.file_path),
+);
+
+// Поличить юзер ид
+const adminUser = db
+  .prepare('SELECT id FROM users WHERE role = "admin"')
+  .get() as any;
+const defaultUserId = adminUser ? adminUser.id : 1;
+
+files.forEach((file) => {
+  const filePath = path.join(uploadsDir, file);
+
+  // Если есть пропускаем
+  if (existingPaths.has(filePath)) {
+    return;
+  }
+
+  try {
+    const stats = fs.statSync(filePath);
+    if (stats.isFile()) {
+      // Сгенерировать случайный идентификатор файла
+      const fileId = Math.floor(Math.random() * 1000000);
+
+      // Извлечь исходное имя файла
+      let originalFilename = file;
+      if (file.includes("_")) {
+        const parts = file.split("_");
+        if (parts.length > 1 && !isNaN(parseInt(parts[0]))) {
+          originalFilename = parts.slice(1).join("_");
+        }
+      }
+
+      db.prepare(
+        `
+        INSERT INTO transfers (file_id, filename, user_id, total_size, status, file_path, start_time, end_time, transferred_size)
+        VALUES (?, ?, ?, ?, 'completed', ?, datetime('now'), datetime('now'), ?)
+      `,
+      ).run(
+        fileId.toString(),
+        originalFilename,
+        defaultUserId,
+        stats.size,
+        filePath,
+        stats.size,
+      );
+
+      console.log(`Imported: ${file} as ${originalFilename}`);
+      importedCount++;
+    }
+  } catch (err) {
+    console.error(`Failed to import ${file}:`, err);
+  }
+});
+
+console.log(`\nImport complete. ${importedCount} new files added to database.`);
+if (importedCount > 0) {
+  db.prepare(
+    "UPDATE stats SET total_files = total_files + ?, total_bytes = total_bytes + (SELECT SUM(total_size) FROM transfers WHERE id > (SELECT MAX(id) - ? FROM transfers)) WHERE id = 1",
+  ).run(importedCount, importedCount);
+}
+
+
+==================================================
+FILE: .\index.html
+==================================================
+
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Google File transfer</title>
+    </head>
+    <body>
+        <div id="root"></div>
+        <script type="module" src="/src/main.tsx"></script>
+    </body>
+</html>
+
+
+==================================================
+FILE: .\metadata.json
+==================================================
+
+{
+  "name": "FileTransfer Pro",
+  "description": "A high-speed client-server file transfer application with admin and user roles.",
+  "requestFramePermissions": []
+}
+
+
+==================================================
+FILE: .\package.json
+==================================================
+
+{
+  "name": "react-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx server.ts",
+    "build": "vite build",
+    "start": "node server.js",
+    "preview": "vite preview",
+    "clean": "rm -rf dist",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^1.29.0",
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
+    "archiver": "^7.0.1",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.4.1",
+    "clsx": "^2.1.1",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "recharts": "^3.8.0",
+    "tailwind-merge": "^3.5.0",
+    "vite": "^6.2.0",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@types/archiver": "^7.0.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.18.1",
+    "autoprefixer": "^10.4.21",
+    "tailwindcss": "^4.1.14",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
+
+
+==================================================
+FILE: .\reset-admin.ts
+==================================================
+
+import db from "./src/db.js";
+import bcrypt from "bcryptjs";
+
+async function resetAdmin() {
+  const hash = await bcrypt.hash("admin", 10);
+
+  // Есть ли админ
+  const user = db
+    .prepare("SELECT * FROM users WHERE username = ?")
+    .get("admin");
+
+  if (user) {
+    db.prepare("UPDATE users SET password_hash = ? WHERE username = ?").run(
+      hash,
+      "admin",
+    );
+    console.log('Password for user "admin" reset to "admin"');
+  } else {
+    // Создать если ещё нет
+    db.prepare(
+      "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+    ).run("admin", hash, "admin");
+    console.log('Created user "admin" with password "admin"');
+  }
+}
+
+resetAdmin();
+
+
+==================================================
+FILE: .\server.ts
+==================================================
+
+import express from "express";
+import { createServer as createViteServer } from "vite";
+import { WebSocketServer, WebSocket } from "ws";
+import { Worker } from "worker_threads";
+import path from "path";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import db from "./src/db.js";
+import archiver from "archiver";
+import fs from "fs";
+
+const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_123";
+const PORT = 3000;
+
+async function startServer() {
+  const app = express();
+
+  // Ведение журналов
+  app.use((req, res, next) => {
+    console.log(`[Server] ${req.method} ${req.url}`);
+    next();
+  });
+
+  app.use(express.json());
+
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on("upgrade", (request, socket, head) => {
+    if (request.url === "/api/ws") {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit("connection", ws, request);
+      });
+    } else {
+      return;
+    }
+  });
+
+  // API Routes
+  app.get("/api/health", (req, res) => {
+    try {
+      // Проверка ДБ
+      db.prepare("SELECT 1").get();
+      res.json({ status: "ok", db: "connected" });
+    } catch (err: any) {
+      console.error("[Server] Health check failed:", err);
+      res.status(500).json({ status: "error", message: err.message });
+    }
+  });
+
+  //  API админа
+  app.get("/api/admin/transfers", (req, res) => {
+    const transfers = db
+      .prepare("SELECT * FROM transfers ORDER BY start_time DESC LIMIT 50")
+      .all();
+    res.json(transfers);
+  });
+
+  app.delete("/api/admin/transfers/:id", (req, res) => {
+    const transfer = db
+      .prepare("SELECT * FROM transfers WHERE id = ?")
+      .get(req.params.id) as any;
+    if (!transfer) return res.status(404).json({ error: "Transfer not found" });
+
+    try {
+      // Удалить, есми файл существует
+      if (transfer.file_path && fs.existsSync(transfer.file_path)) {
+        fs.unlinkSync(transfer.file_path);
+      }
+
+      // Удалить связные записи
+      db.prepare("DELETE FROM packets WHERE transfer_id = ?").run(
+        req.params.id,
+      );
+      db.prepare("DELETE FROM transfer_metrics WHERE transfer_id = ?").run(
+        req.params.id,
+      );
+      db.prepare("DELETE FROM transfers WHERE id = ?").run(req.params.id);
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Failed to delete transfer", err);
+      res.status(500).json({ error: "Failed to delete transfer" });
+    }
+  });
+
+  app.put("/api/admin/transfers/:id", (req, res) => {
+    const { filename, status } = req.body;
+    db.prepare(
+      "UPDATE transfers SET filename = ?, status = ? WHERE id = ?",
+    ).run(filename, status, req.params.id);
+    res.json({ success: true });
+  });
+
+  app.get("/api/files", (req, res) => {
+    // Возвращать только завершенные передачи
+    const files = db
+      .prepare(
+        'SELECT id, filename, total_size, end_time, user_id FROM transfers WHERE status = "completed" AND file_path IS NOT NULL ORDER BY end_time DESC',
+      )
+      .all();
+    res.json(files);
+  });
+
+  app.get("/api/files/:id/download", (req, res) => {
+    const transfer = db
+      .prepare("SELECT * FROM transfers WHERE id = ?")
+      .get(req.params.id) as any;
+    if (!transfer || !transfer.file_path)
+      return res.status(404).json({ error: "File not found" });
+
+    if (!fs.existsSync(transfer.file_path)) {
+      return res.status(404).json({ error: "File not found on disk" });
+    }
+
+    res.download(transfer.file_path, transfer.filename);
+  });
+
+  app.get("/api/admin/transfers/:id", (req, res) => {
+    const transfer = db
+      .prepare("SELECT * FROM transfers WHERE id = ?")
+      .get(req.params.id);
+    if (!transfer) return res.status(404).json({ error: "Transfer not found" });
+
+    // Ограничьте количество пакетов до 200 в последнюю секунду, чтобы предотвратить сбои браузера при работе с большими файлами
+    const packets = db
+      .prepare(
+        "SELECT * FROM packets WHERE transfer_id = ? ORDER BY timestamp DESC LIMIT 200",
+      )
+      .all(req.params.id);
+
+    const metrics = db
+      .prepare(
+        "SELECT * FROM transfer_metrics WHERE transfer_id = ? ORDER BY timestamp DESC LIMIT 1000",
+      )
+      .all(req.params.id);
+
+    res.json({
+      transfer,
+      packets: packets.reverse(),
+      metrics: metrics.reverse(),
+    });
+  });
+
+  app.get("/api/admin/packets", (req, res) => {
+    const packets = db
+      .prepare("SELECT * FROM packets ORDER BY timestamp DESC LIMIT 200")
+      .all();
+    res.json(packets);
+  });
+
+  app.put("/api/admin/logs/:id", (req, res) => {
+    const { action, details } = req.body;
+    db.prepare("UPDATE logs SET action = ?, details = ? WHERE id = ?").run(
+      action,
+      details,
+      req.params.id,
+    );
+    res.json({ success: true });
+  });
+
+  app.get("/api/download-source", (req, res) => {
+    console.log("[Server] Download source request received");
+    try {
+      const archive = archiver("zip", {
+        zlib: { level: 9 }, // Устанавливает уровень сжатия
+      });
+
+      res.attachment("project-source.zip");
+
+      archive.on("error", (err) => {
+        console.error("[Server] Archiver error:", err);
+        if (!res.headersSent) {
+          res.status(500).send({ error: err.message });
+        }
+      });
+
+      archive.on("warning", (err) => {
+        if (err.code === "ENOENT") {
+          console.warn("[Server] Archiver warning:", err);
+        } else {
+          console.error("[Server] Archiver error:", err);
+          if (!res.headersSent) {
+            res.status(500).send({ error: err.message });
+          }
+        }
+      });
+
+      archive.pipe(res);
+
+      archive.glob("**/*", {
+        cwd: process.cwd(),
+        ignore: [
+          "node_modules/**",
+          "dist/**",
+          "uploads/**",
+          ".git/**",
+          "data.db",
+          "data.db-journal",
+          ".env",
+        ],
+      });
+
+      archive.finalize();
+    } catch (err) {
+      console.error("[Server] Download source unexpected error:", err);
+      if (!res.headersSent) {
+        res
+          .status(500)
+          .send({ error: "Internal server error during download" });
+      }
+    }
+  });
+
+  app.post("/api/auth/register", async (req, res) => {
+    console.log("[Server] Register request received:", req.body.username);
+    const { username, password, role } = req.body;
+    try {
+      const hash = await bcrypt.hash(password, 10);
+      const stmt = db.prepare(
+        "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+      );
+      const info = stmt.run(username, hash, role || "user");
+      console.log("[Server] Register success:", username);
+      res.json({ success: true, userId: info.lastInsertRowid });
+    } catch (err: any) {
+      console.error("[Server] Register error:", err.message);
+      if (err.message.includes("UNIQUE constraint failed")) {
+        res.status(400).json({ error: "Username already exists" });
+      } else {
+        res.status(500).json({ error: "Internal server error" });
+      }
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    console.log("[Server] Login request received:", req.body.username);
+    const { username, password } = req.body;
+    try {
+      const user = db
+        .prepare("SELECT * FROM users WHERE username = ?")
+        .get(username) as any;
+      if (!user) {
+        console.log("[Server] Login failed: User not found");
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      const validPassword = await bcrypt.compare(password, user.password_hash);
+      if (!validPassword) {
+        console.log("[Server] Login failed: Invalid password");
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      const token = jwt.sign(
+        { id: user.id, username: user.username, role: user.role },
+        JWT_SECRET,
+        { expiresIn: "24h" },
+      );
+
+      db.prepare(
+        "INSERT INTO logs (user_id, username, action, details) VALUES (?, ?, ?, ?)",
+      ).run(user.id, user.username, "login", "User logged in");
+
+      console.log("[Server] Login success:", username);
+      res.json({
+        token,
+        user: { id: user.id, username: user.username, role: user.role },
+      });
+    } catch (error) {
+      console.error("[Server] Login error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/admin/stats", (req, res) => {
+    const stats = db.prepare("SELECT * FROM stats WHERE id = 1").get();
+    const activeConnections = wss.clients.size;
+    res.json({ ...stats, activeConnections });
+  });
+
+  app.get("/api/admin/logs", (req, res) => {
+    const logs = db
+      .prepare(
+        `
+      SELECT id, username, action, details, timestamp
+      FROM logs
+      ORDER BY timestamp DESC
+      LIMIT 100
+    `,
+      )
+      .all();
+    res.json(logs);
+  });
+
+  app.delete("/api/admin/logs/:id", (req, res) => {
+    db.prepare("DELETE FROM logs WHERE id = ?").run(req.params.id);
+    res.json({ success: true });
+  });
+
+  app.put("/api/admin/logs/:id", (req, res) => {
+    const { action, details, username, timestamp } = req.body;
+    db.prepare(
+      `
+      UPDATE logs
+      SET action = ?, details = ?, username = ?, timestamp = ?
+      WHERE id = ?
+    `,
+    ).run(action, details, username, timestamp, req.params.id);
+    res.json({ success: true });
+  });
+
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: {
+        middlewareMode: true,
+        hmr: { server },
+      },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    app.use(express.static("dist"));
+  }
+
+  const fileWorker = new Worker(path.join(process.cwd(), "src", "worker.js"));
+
+  fileWorker.on("error", (err) => {
+    console.error("Worker error:", err);
+  });
+
+  fileWorker.on("message", (msg) => {
+    if (msg.type === "ack_start") {
+      db.prepare("UPDATE transfers SET file_path = ? WHERE file_id = ?").run(
+        msg.filePath,
+        msg.fileId.toString(),
+      );
+    } else if (msg.type === "ack_end") {
+      db.prepare(
+        "UPDATE stats SET total_files = total_files + 1 WHERE id = 1",
+      ).run();
+    }
+  });
+
+  wss.on("connection", (ws: WebSocket, req) => {
+    if (wss.clients.size > 3) {
+      ws.close(1008, "Server full (max 3 clients)");
+      return;
+    }
+
+    let authenticatedUser: any = null;
+    let currentFileId: number | null = null;
+    let dbTransferId: number | null = null;
+    let currentBytesReceived = 0;
+    let lastMetricTime = Date.now();
+    let bytesSinceLastMetric = 0;
+
+    // Ведение журналов пакетной обработки пакетов для предотвращения блокировки базы данных при высокоскоростной передаче данных
+    let packetLogBuffer: any[] = [];
+    let packetLogTimeout: NodeJS.Timeout | null = null;
+
+    const flushPacketLogs = () => {
+      if (packetLogBuffer.length === 0) return;
+
+      try {
+        const bufferToInsert = [...packetLogBuffer];
+        packetLogBuffer = [];
+
+        const insert = db.prepare(
+          "INSERT INTO packets (transfer_id, direction, type, size, payload_preview) VALUES (?, ?, ?, ?, ?)",
+        );
+        const insertMany = db.transaction((packets) => {
+          for (const pkt of packets) {
+            insert.run(
+              pkt.transferId,
+              pkt.direction,
+              pkt.type,
+              pkt.size,
+              pkt.preview,
+            );
+          }
+        });
+        insertMany(bufferToInsert);
+      } catch (e) {
+        console.error("Packet log flush error", e);
+      }
+    };
+
+    const logPacket = (
+      direction: "in" | "out",
+      type: string,
+      size: number,
+      payload: Buffer | string,
+    ) => {
+      try {
+        const preview = Buffer.isBuffer(payload)
+          ? payload.subarray(0, 20).toString("hex")
+          : payload.toString().substring(0, 50);
+
+        packetLogBuffer.push({
+          transferId: dbTransferId,
+          direction,
+          type,
+          size,
+          preview,
+        });
+
+        if (packetLogBuffer.length >= 100) {
+          if (packetLogTimeout) clearTimeout(packetLogTimeout);
+          packetLogTimeout = null;
+          flushPacketLogs();
+        } else if (!packetLogTimeout) {
+          packetLogTimeout = setTimeout(() => {
+            flushPacketLogs();
+            packetLogTimeout = null;
+          }, 1000);
+        }
+      } catch (e) {
+        console.error("Packet log error", e);
+      }
+    };
+
+    // Функция обнаружения неработающих соединений
+    (ws as any).isAlive = true;
+    ws.on("pong", () => {
+      (ws as any).isAlive = true;
+    });
+
+    ws.on("message", (message: Buffer) => {
+      try {
+        const type = message[0];
+        const size = message.length;
+
+        if (type === 0x00) {
+          logPacket("in", "auth", size, message);
+          const token = message.subarray(1).toString("utf-8");
+          try {
+            authenticatedUser = jwt.verify(token, JWT_SECRET);
+            (ws as any).username = authenticatedUser.username;
+            (ws as any).connectedAt = Date.now();
+            ws.send(JSON.stringify({ type: "auth_success" }));
+            logPacket("out", "auth_ack", 0, "auth_success");
+          } catch (err) {
+            ws.send(
+              JSON.stringify({ type: "error", message: "Invalid token" }),
+            );
+            logPacket("out", "auth_error", 0, "Invalid token");
+            ws.close();
+          }
+        } else if (type === 0x01) {
+          if (!authenticatedUser) return ws.close();
+          const fileId = message.readUInt32LE(1);
+          const metadataStr = message.subarray(5).toString("utf-8");
+          const metadata = JSON.parse(metadataStr);
+          currentFileId = fileId;
+          currentBytesReceived = 0;
+
+          const info = db
+            .prepare(
+              "INSERT INTO transfers (file_id, filename, user_id, total_size, status) VALUES (?, ?, ?, ?, ?)",
+            )
+            .run(
+              fileId.toString(),
+              metadata.filename,
+              authenticatedUser.id,
+              metadata.size,
+              "uploading",
+            );
+          dbTransferId = Number(info.lastInsertRowid);
+
+          logPacket("in", "start", size, message);
+
+          db.prepare(
+            "INSERT INTO logs (user_id, username, action, details) VALUES (?, ?, ?, ?)",
+          ).run(
+            authenticatedUser.id,
+            authenticatedUser.username,
+            "upload_start",
+            `Started uploading ${metadata.filename}`,
+          );
+
+          fileWorker.postMessage({
+            type: "start",
+            fileId,
+            filename: metadata.filename,
+          });
+        } else if (type === 0x02) {
+          if (!authenticatedUser) return ws.close();
+          const fileId = message.readUInt32LE(1);
+          const chunk = message.subarray(5);
+          currentBytesReceived += chunk.length;
+          bytesSinceLastMetric += chunk.length;
+
+          logPacket("in", "chunk", size, chunk);
+
+          const now = Date.now();
+          if (now - lastMetricTime > 1000 && dbTransferId) {
+            const duration = (now - lastMetricTime) / 1000;
+            const speed = Math.round(bytesSinceLastMetric / duration);
+
+            db.prepare(
+              "INSERT INTO transfer_metrics (transfer_id, bytes_transferred, speed_bps) VALUES (?, ?, ?)",
+            ).run(dbTransferId, currentBytesReceived, speed);
+
+            db.prepare(
+              "UPDATE transfers SET transferred_size = ? WHERE id = ?",
+            ).run(currentBytesReceived, dbTransferId);
+
+            lastMetricTime = now;
+            bytesSinceLastMetric = 0;
+          }
+
+          fileWorker.postMessage({ type: "chunk", fileId, data: chunk });
+        } else if (type === 0x03) {
+          if (!authenticatedUser) return ws.close();
+          const fileId = message.readUInt32LE(1);
+
+          logPacket("in", "end", size, message);
+
+          db.prepare(
+            "UPDATE stats SET total_bytes = total_bytes + ? WHERE id = 1",
+          ).run(currentBytesReceived);
+
+          if (dbTransferId) {
+            db.prepare(
+              "UPDATE transfers SET status = ?, end_time = CURRENT_TIMESTAMP, transferred_size = ? WHERE id = ?",
+            ).run("completed", currentBytesReceived, dbTransferId);
+          }
+
+          db.prepare(
+            "INSERT INTO logs (user_id, username, action, details) VALUES (?, ?, ?, ?)",
+          ).run(
+            authenticatedUser.id,
+            authenticatedUser.username,
+            "upload_end",
+            `Finished uploading file ID ${fileId}, total bytes: ${currentBytesReceived}`,
+          );
+
+          fileWorker.postMessage({ type: "end", fileId });
+          ws.send(JSON.stringify({ type: "file_success", fileId }));
+          logPacket("out", "ack", 0, "file_success");
+
+          const updateMsg = JSON.stringify({ type: "file_list_update" });
+          wss.clients.forEach((client: any) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(updateMsg);
+            }
+          });
+        } else if (type === 0x04) {
+          if (!authenticatedUser) return ws.close();
+          const fileId = message.readUInt32LE(1);
+
+          logPacket("in", "download_req", size, message);
+
+          const transfer = db
+            .prepare("SELECT * FROM transfers WHERE id = ?")
+            .get(fileId) as any;
+
+          if (
+            !transfer ||
+            !transfer.file_path ||
+            !fs.existsSync(transfer.file_path)
+          ) {
+            ws.send(
+              JSON.stringify({ type: "error", message: "File not found" }),
+            );
+            logPacket("out", "error", 0, "File not found");
+            return;
+          }
+
+          const metadata = JSON.stringify({
+            filename: transfer.filename,
+            size: transfer.total_size,
+          });
+          const metaBytes = new TextEncoder().encode(metadata);
+          const startMsg = new Uint8Array(1 + metaBytes.length);
+          startMsg[0] = 0x05;
+          startMsg.set(metaBytes, 1);
+          ws.send(startMsg);
+          logPacket("out", "download_start", startMsg.length, startMsg);
+
+          const fileStream = fs.createReadStream(transfer.file_path, {
+            highWaterMark: 64 * 1024,
+          });
+
+          fileStream.on("data", (chunk) => {
+            const chunkData = new Uint8Array(chunk as Buffer);
+            const chunkMsg = new Uint8Array(1 + chunkData.length);
+            chunkMsg[0] = 0x06;
+            chunkMsg.set(chunkData, 1);
+            ws.send(chunkMsg);
+          });
+
+          fileStream.on("end", () => {
+            const endMsg = new Uint8Array(1);
+            endMsg[0] = 0x07;
+            ws.send(endMsg);
+            logPacket("out", "download_end", 1, endMsg);
+
+            db.prepare(
+              "INSERT INTO logs (user_id, username, action, details) VALUES (?, ?, ?, ?)",
+            ).run(
+              authenticatedUser.id,
+              authenticatedUser.username,
+              "download",
+              `Downloaded file ${transfer.filename}`,
+            );
+          });
+
+          fileStream.on("error", (err) => {
+            console.error("File read error", err);
+            ws.send(
+              JSON.stringify({ type: "error", message: "Error reading file" }),
+            );
+          });
+        }
+      } catch (err) {
+        console.error("[Server] Error in WS message handler:", err);
+        ws.send(
+          JSON.stringify({ type: "error", message: "Internal server error" }),
+        );
+      }
+    });
+
+    ws.on("close", () => {
+      if (authenticatedUser) {
+        db.prepare(
+          "INSERT INTO logs (user_id, username, action, details) VALUES (?, ?, ?, ?)",
+        ).run(
+          authenticatedUser.id,
+          authenticatedUser.username,
+          "disconnect",
+          "User disconnected",
+        );
+      }
+    });
+  });
+
+  // Интервал для проверки наличия неработающих соединений
+  const interval = setInterval(() => {
+    wss.clients.forEach((ws: any) => {
+      if (ws.isAlive === false) return ws.terminate();
+
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 10000);
+
+  wss.on("close", () => {
+    clearInterval(interval);
+  });
+
+  app.get("/api/admin/connections", (req, res) => {
+    const connections: any[] = [];
+    wss.clients.forEach((client: any) => {
+      if (client.readyState === WebSocket.OPEN) {
+        connections.push({
+          username: client.username || "Anonymous",
+          ip: client._socket?.remoteAddress,
+          connectedAt: client.connectedAt,
+        });
+      }
+    });
+    res.json(connections);
+  });
+}
+
+startServer();
+
+
+==================================================
+FILE: .\tsconfig.json
+==================================================
+
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  }
+}
+
+
+==================================================
+FILE: .\vite.config.ts
+==================================================
+
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
+import path from "path";
+import { defineConfig, loadEnv } from "vite";
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, ".", "");
+  return {
+    plugins: [react(), tailwindcss()],
+    define: {
+      "process.env.GEMINI_API_KEY": JSON.stringify(env.GEMINI_API_KEY),
+    },
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "."),
+      },
+    },
+    server: {
+      allowedHosts: [".tunnelmole.net"], // чтобы Tunnelmole работал
+      watch: {
+        disableHostCheck: true, // полностью выключает проверку хостов
+        ignored: [
+          "**/data.db",
+          "**/data.db-wal",
+          "**/data.db-shm",
+          "**/uploads/**",
+          "**/*.sqlite",
+          "**/*.log",
+        ],
+      },
+
+      hmr: process.env.DISABLE_HMR !== "true",
+    },
+  };
+});
+
+
+==================================================
+FILE: .\src\App.tsx
+==================================================
+
+import { useState, useEffect } from "react";
+import Login from "./components/Login";
+import UserDashboard from "./components/UserDashboard";
+import AdminDashboard from "./components/AdminDashboard";
+import { Moon, Sun } from "lucide-react";
+
+export default function App() {
+  const [user, setUser] = useState<any>(null);
+  const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    try {
+      const storedUser = sessionStorage.getItem("user");
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
+      }
+    } catch (e) {
+      console.error("Failed to parse user from session storage", e);
+      sessionStorage.removeItem("user");
+      sessionStorage.removeItem("token");
+    }
+
+    const storedTheme = localStorage.getItem("theme");
+    if (
+      storedTheme === "dark" ||
+      (!storedTheme &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches)
+    ) {
+      setDarkMode(true);
+      document.documentElement.classList.add("dark");
+    }
+  }, []);
+
+  const toggleDarkMode = () => {
+    const newMode = !darkMode;
+    setDarkMode(newMode);
+    if (newMode) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("user");
+    setUser(null);
+  };
+
+  if (!user) {
+    return (
+      <div className={darkMode ? "dark" : ""}>
+        <div className="absolute top-4 right-4 z-50">
+          <button
+            onClick={toggleDarkMode}
+            className="p-2 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          >
+            {darkMode ? (
+              <Sun className="w-5 h-5" />
+            ) : (
+              <Moon className="w-5 h-5" />
+            )}
+          </button>
+        </div>
+        <Login onLogin={setUser} />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`min-h-screen font-sans transition-colors duration-300 ${darkMode ? "dark bg-gray-900 text-gray-100" : "bg-gray-50 text-gray-900"}`}
+    >
+      <header className="bg-white dark:bg-gray-800 shadow-sm px-6 py-4 flex justify-between items-center transition-colors duration-300">
+        <h1 className="text-xl font-medium text-google-blue dark:text-google-blue">
+          FileTransfer
+        </h1>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={toggleDarkMode}
+            className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          >
+            {darkMode ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+          </button>
+          <span className="text-sm text-gray-600 dark:text-gray-300">
+            Logged in as <b>{user.username}</b> ({user.role})
+          </span>
+          <button
+            onClick={handleLogout}
+            className="text-sm text-google-red hover:text-red-700 font-medium"
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+      <main className="p-6 max-w-5xl mx-auto">
+        {user.role === "admin" ? (
+          <AdminDashboard />
+        ) : (
+          <UserDashboard user={user} />
+        )}
+      </main>
+    </div>
+  );
+}
+
+
+==================================================
+FILE: .\src\db.ts
+==================================================
+
+import Database from "better-sqlite3";
+import fs from "fs";
+import path from "path";
+
+const dbPath = path.join(process.cwd(), "data.db");
+
+let db;
+try {
+  db = new Database(dbPath);
+  // Проверочный запрос
+  db.prepare("SELECT 1").get();
+} catch (err) {
+  console.error("Database corrupted or failed to open, recreating...", err);
+  try {
+    if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+    if (fs.existsSync(dbPath + "-shm")) fs.unlinkSync(dbPath + "-shm");
+    if (fs.existsSync(dbPath + "-wal")) fs.unlinkSync(dbPath + "-wal");
+  } catch (e) {
+    console.error("Failed to delete corrupted DB files", e);
+  }
+  db = new Database(dbPath);
+}
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'user'
+    );
+
+    CREATE TABLE IF NOT EXISTS logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      username TEXT,
+      action TEXT NOT NULL,
+      details TEXT,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+  `);
+
+  // Добавить столбец с именем пользователя если нет
+  try {
+    const columns = db.prepare("PRAGMA table_info(logs)").all() as any[];
+    const hasUsername = columns.some((col) => col.name === "username");
+    if (!hasUsername) {
+      db.prepare("ALTER TABLE logs ADD COLUMN username TEXT").run();
+    }
+  } catch (e: any) {
+    // console.error('Migration error:', e);
+  }
+
+  // Заполнение существующих журналов именами пользователей
+  try {
+    db.prepare(
+      `
+      UPDATE logs
+      SET username = (SELECT username FROM users WHERE users.id = logs.user_id)
+      WHERE username IS NULL
+    `,
+    ).run();
+  } catch (e) {
+    // console.error('Data migration error', e);
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS stats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      total_files INTEGER DEFAULT 0,
+      total_bytes INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS transfers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      file_id TEXT,
+      filename TEXT,
+      user_id INTEGER,
+      start_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+      end_time DATETIME,
+      status TEXT,
+      total_size INTEGER,
+      transferred_size INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS packets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      transfer_id INTEGER,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      direction TEXT, -- 'in' or 'out'
+      type TEXT, -- 'auth', 'start', 'chunk', 'end', 'ack'
+      size INTEGER,
+      payload_preview TEXT,
+      FOREIGN KEY(transfer_id) REFERENCES transfers(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS transfer_metrics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      transfer_id INTEGER,
+      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+      bytes_transferred INTEGER,
+      speed_bps INTEGER,
+      FOREIGN KEY(transfer_id) REFERENCES transfers(id)
+    );
+
+    INSERT INTO stats (id, total_files, total_bytes)
+    SELECT 1, 0, 0
+    WHERE NOT EXISTS (SELECT 1 FROM stats WHERE id = 1);
+  `);
+
+  // Добавить столбец file_path к передаваемым данным если его нет
+  try {
+    const columns = db.prepare("PRAGMA table_info(transfers)").all() as any[];
+    const hasFilePath = columns.some((col) => col.name === "file_path");
+    if (!hasFilePath) {
+      db.prepare("ALTER TABLE transfers ADD COLUMN file_path TEXT").run();
+    }
+  } catch (e: any) {
+    // console.error('Migration error:', e);
+  }
+} catch (err) {
+  console.error("Failed to initialize database schema:", err);
+}
+
+export default db;
+
+
+==================================================
+FILE: .\src\main.tsx
+==================================================
+
+import {StrictMode} from 'react';
+import {createRoot} from 'react-dom/client';
+import App from './App.tsx';
+import ErrorBoundary from './components/ErrorBoundaryComponent';
+import './index.css';
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  </StrictMode>,
+);
+
+
+==================================================
+FILE: .\src\worker.js
+==================================================
+
+import { parentPort } from "worker_threads";
+import fs from "fs";
+import path from "path";
+
+const uploadsDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+const activeStreams = new Map();
+
+parentPort?.on("message", (msg) => {
+  const { type, fileId, data, filename } = msg;
+
+  if (type === "start") {
+    const safeFilename = path.basename(filename);
+    const filePath = path.join(uploadsDir, `${Date.now()}_${safeFilename}`);
+    const stream = fs.createWriteStream(filePath);
+    activeStreams.set(fileId, stream);
+    parentPort.postMessage({ type: "ack_start", fileId, filePath });
+  } else if (type === "chunk") {
+    const stream = activeStreams.get(fileId);
+    if (stream) {
+      stream.write(Buffer.from(data));
+      parentPort.postMessage({ type: "ack_chunk", fileId });
+    }
+  } else if (type === "end") {
+    const stream = activeStreams.get(fileId);
+    if (stream) {
+      stream.end();
+      activeStreams.delete(fileId);
+      parentPort.postMessage({ type: "ack_end", fileId });
+    }
+  }
+});
+
+
+==================================================
+FILE: .\src\components\AdminDashboard.tsx
+==================================================
+
+import { useState, useEffect } from "react";
+import {
+  Activity,
+  HardDrive,
+  Users,
+  Trash2,
+  RefreshCw,
+  FileText,
+  Network,
+  Edit2,
+  X,
+  Check,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+
+export default function AdminDashboard() {
+  const [activeTab, setActiveTab] = useState<"logs" | "transfers" | "packets">(
+    "logs",
+  );
+  const [stats, setStats] = useState<any>(null);
+  const [logs, setLogs] = useState<any[]>([]);
+  const [transfers, setTransfers] = useState<any[]>([]);
+  const [packets, setPackets] = useState<any[]>([]);
+  const [connections, setConnections] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Редактировать состояние журнала
+  const [editingLog, setEditingLog] = useState<any>(null);
+  const [editForm, setEditForm] = useState({
+    action: "",
+    details: "",
+    username: "",
+    timestamp: "",
+  });
+
+  // Расширенное состояние передачи
+  const [expandedTransferId, setExpandedTransferId] = useState<number | null>(
+    null,
+  );
+  const [transferDetails, setTransferDetails] = useState<any>(null);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Фильтры журналов
+  const [logFilterUser, setLogFilterUser] = useState("");
+  const [logFilterAction, setLogFilterAction] = useState("all");
+
+  // Изменить состояние передачи
+  const [editingTransfer, setEditingTransfer] = useState<any>(null);
+  const [editTransferForm, setEditTransferForm] = useState({
+    filename: "",
+    status: "",
+  });
+
+  const handleEditTransfer = (transfer: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingTransfer(transfer);
+    setEditTransferForm({
+      filename: transfer.filename,
+      status: transfer.status,
+    });
+  };
+
+  const saveTransferEdit = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!editingTransfer) return;
+    try {
+      const res = await fetch(`/api/admin/transfers/${editingTransfer.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editTransferForm),
+      });
+      if (res.ok) {
+        setTransfers(
+          transfers.map((t) =>
+            t.id === editingTransfer.id ? { ...t, ...editTransferForm } : t,
+          ),
+        );
+        setEditingTransfer(null);
+      }
+    } catch (err) {
+      console.error("Failed to update transfer", err);
+    }
+  };
+
+  const deleteTransfer = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this transfer and its file?"))
+      return;
+    try {
+      const res = await fetch(`/api/admin/transfers/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setTransfers(transfers.filter((t) => t.id !== id));
+        if (expandedTransferId === id) setExpandedTransferId(null);
+      }
+    } catch (err) {
+      console.error("Failed to delete transfer", err);
+    }
+  };
+
+  const fetchData = async () => {
+    try {
+      setIsRefreshing(true);
+      setError(null);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+      const [statsRes, logsRes, transfersRes, packetsRes, connectionsRes] =
+        await Promise.all([
+          fetch("/api/admin/stats", { signal: controller.signal }).catch(
+            (e) => null,
+          ),
+          fetch("/api/admin/logs", { signal: controller.signal }).catch(
+            (e) => null,
+          ),
+          fetch("/api/admin/transfers", { signal: controller.signal }).catch(
+            (e) => null,
+          ),
+          fetch("/api/admin/packets", { signal: controller.signal }).catch(
+            (e) => null,
+          ),
+          fetch("/api/admin/connections", { signal: controller.signal }).catch(
+            (e) => null,
+          ),
+        ]);
+
+      clearTimeout(timeoutId);
+
+      if (statsRes?.ok) setStats(await statsRes.json());
+      if (logsRes?.ok) setLogs(await logsRes.json());
+      if (transfersRes?.ok) setTransfers(await transfersRes.json());
+      if (packetsRes?.ok) setPackets(await packetsRes.json());
+      if (connectionsRes?.ok) setConnections(await connectionsRes.json());
+    } catch (err: any) {
+      console.error("Failed to fetch admin data", err);
+      setError("Failed to load data.");
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchTransferDetails = async (id: number) => {
+    if (expandedTransferId === id) {
+      setExpandedTransferId(null);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/transfers/${id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTransferDetails(data);
+        setExpandedTransferId(id);
+      }
+    } catch (err) {
+      console.error("Failed to fetch transfer details", err);
+    }
+  };
+
+  const handleEditLog = (log: any) => {
+    setEditingLog(log);
+    setEditForm({
+      action: log.action,
+      details: log.details,
+      username: log.username,
+      timestamp: log.timestamp,
+    });
+  };
+
+  const saveLogEdit = async () => {
+    if (!editingLog) return;
+    try {
+      const res = await fetch(`/api/admin/logs/${editingLog.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      if (res.ok) {
+        setLogs(
+          logs.map((l) => (l.id === editingLog.id ? { ...l, ...editForm } : l)),
+        );
+        setEditingLog(null);
+      }
+    } catch (err) {
+      console.error("Failed to update log", err);
+    }
+  };
+
+  const deleteLog = async (id: number) => {
+    try {
+      const res = await fetch(`/api/admin/logs/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setLogs(logs.filter((log) => log.id !== id));
+      }
+    } catch (err) {
+      console.error("Failed to delete log", err);
+    }
+  };
+
+  if (loading && !stats)
+    return (
+      <div className="text-center py-12 text-gray-500">
+        Loading dashboard...
+      </div>
+    );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-medium text-gray-900">Admin Dashboard</h2>
+        <div className="flex gap-3">
+          <button
+            onClick={fetchData}
+            disabled={isRefreshing}
+            className={`flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium ${isRefreshing ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
+            />
+            {isRefreshing ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      {/* Статистические карточки */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4 relative group">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
+            <Activity className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 font-medium">
+              Active Connections
+            </p>
+            <p className="text-2xl font-semibold text-gray-900">
+              {stats?.activeConnections || 0} / 3
+            </p>
+          </div>
+
+          {/* Всплывающая подсказка для активных подключений */}
+          <div className="absolute top-full left-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-3 hidden group-hover:block z-10">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">
+              Connected Users
+            </h4>
+            {connections.length === 0 ? (
+              <p className="text-xs text-gray-400">No active connections</p>
+            ) : (
+              <ul className="space-y-1">
+                {connections.map((conn: any, i: number) => (
+                  <li key={i} className="text-xs flex justify-between">
+                    <span className="font-medium text-gray-700">
+                      {conn.username}
+                    </span>
+                    <span className="text-gray-400">
+                      {new Date(conn.connectedAt).toLocaleTimeString()}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+          <div className="p-3 bg-green-50 text-green-600 rounded-lg">
+            <HardDrive className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 font-medium">Total Files</p>
+            <p className="text-2xl font-semibold text-gray-900">
+              {stats?.total_files || 0}
+            </p>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+          <div className="p-3 bg-purple-50 text-purple-600 rounded-lg">
+            <Users className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-sm text-gray-500 font-medium">Total Data</p>
+            <p className="text-2xl font-semibold text-gray-900">
+              {((stats?.total_bytes || 0) / 1024 / 1024).toFixed(2)} MB
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Вкладки */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex gap-6">
+          <button
+            onClick={() => setActiveTab("logs")}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === "logs" ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}
+          >
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4" /> System Logs
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab("transfers")}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === "transfers" ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}
+          >
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4" /> File Transfers
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab("packets")}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === "packets" ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}
+          >
+            <div className="flex items-center gap-2">
+              <Network className="w-4 h-4" /> Packet Inspector
+            </div>
+          </button>
+        </nav>
+      </div>
+
+      {/* Вкладка «Журналы» */}
+      {activeTab === "logs" && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-4 border-b border-gray-100 flex gap-4 items-center bg-gray-50">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-600">
+                Filter by User:
+              </span>
+              <input
+                type="text"
+                placeholder="Username..."
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                value={logFilterUser}
+                onChange={(e) => setLogFilterUser(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-600">
+                Filter by Action:
+              </span>
+              <select
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                value={logFilterAction}
+                onChange={(e) => setLogFilterAction(e.target.value)}
+              >
+                <option value="all">All Actions</option>
+                <option value="login">Login</option>
+                <option value="disconnect">Disconnect</option>
+                <option value="upload_start">Upload Start</option>
+                <option value="upload_end">Upload End</option>
+              </select>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left text-gray-500">
+              <thead className="text-xs text-gray-700 uppercase bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3">Time</th>
+                  <th className="px-6 py-3">User</th>
+                  <th className="px-6 py-3">Action</th>
+                  <th className="px-6 py-3">Details</th>
+                  <th className="px-6 py-3 text-right">Manage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs
+                  .filter((log) => {
+                    const matchesUser = logFilterUser
+                      ? (log.username || "")
+                          .toLowerCase()
+                          .includes(logFilterUser.toLowerCase())
+                      : true;
+                    const matchesAction =
+                      logFilterAction !== "all"
+                        ? log.action === logFilterAction
+                        : true;
+                    return matchesUser && matchesAction;
+                  })
+                  .map((log) => (
+                    <tr
+                      key={log.id}
+                      className="bg-white border-b hover:bg-gray-50"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                        {editingLog?.id === log.id ? (
+                          <input
+                            value={editForm.timestamp}
+                            onChange={(e) =>
+                              setEditForm({
+                                ...editForm,
+                                timestamp: e.target.value,
+                              })
+                            }
+                            className="border rounded px-2 py-1 w-full text-xs"
+                          />
+                        ) : (
+                          new Date(log.timestamp).toLocaleString()
+                        )}
+                      </td>
+                      <td className="px-6 py-4 font-medium text-gray-900">
+                        {editingLog?.id === log.id ? (
+                          <input
+                            value={editForm.username}
+                            onChange={(e) =>
+                              setEditForm({
+                                ...editForm,
+                                username: e.target.value,
+                              })
+                            }
+                            className="border rounded px-2 py-1 w-full"
+                          />
+                        ) : (
+                          log.username || "System"
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {editingLog?.id === log.id ? (
+                          <input
+                            value={editForm.action}
+                            onChange={(e) =>
+                              setEditForm({
+                                ...editForm,
+                                action: e.target.value,
+                              })
+                            }
+                            className="border rounded px-2 py-1 w-full"
+                          />
+                        ) : (
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+                              log.action === "login"
+                                ? "bg-green-50 text-green-700 border-green-200"
+                                : log.action === "disconnect"
+                                  ? "bg-orange-50 text-orange-700 border-orange-200"
+                                  : log.action === "upload_start"
+                                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                                    : log.action === "upload_end"
+                                      ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                      : "bg-gray-50 text-gray-700 border-gray-200"
+                            }`}
+                          >
+                            {log.action === "upload_start"
+                              ? "Upload Started"
+                              : log.action === "upload_end"
+                                ? "Upload Completed"
+                                : log.action.charAt(0).toUpperCase() +
+                                  log.action.slice(1)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-gray-600">
+                        {editingLog?.id === log.id ? (
+                          <input
+                            value={editForm.details}
+                            onChange={(e) =>
+                              setEditForm({
+                                ...editForm,
+                                details: e.target.value,
+                              })
+                            }
+                            className="border rounded px-2 py-1 w-full"
+                          />
+                        ) : (
+                          log.details
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right flex justify-end gap-2">
+                        {editingLog?.id === log.id ? (
+                          <>
+                            <button
+                              onClick={saveLogEdit}
+                              className="text-green-600 hover:text-green-800"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => setEditingLog(null)}
+                              className="text-gray-500 hover:text-gray-700"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleEditLog(log)}
+                              className="text-blue-600 hover:text-blue-800"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteLog(log.id)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                {logs.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-6 py-8 text-center text-gray-500"
+                    >
+                      No logs found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Вкладка «Трансферы» */}
+      {activeTab === "transfers" && (
+        <div className="space-y-4">
+          {transfers.map((transfer) => (
+            <div
+              key={transfer.id}
+              className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
+            >
+              <div
+                className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+                onClick={() => fetchTransferDetails(transfer.id)}
+              >
+                <div className="flex items-center gap-4">
+                  <div
+                    className={`p-2 rounded-lg ${transfer.status === "completed" ? "bg-green-100 text-green-600" : "bg-blue-100 text-blue-600"}`}
+                  >
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    {editingTransfer?.id === transfer.id ? (
+                      <input
+                        value={editTransferForm.filename}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) =>
+                          setEditTransferForm({
+                            ...editTransferForm,
+                            filename: e.target.value,
+                          })
+                        }
+                        className="border rounded px-2 py-1 w-full text-sm font-medium text-gray-900 mb-1"
+                      />
+                    ) : (
+                      <p className="font-medium text-gray-900">
+                        {transfer.filename}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500">
+                      {(transfer.total_size / 1024 / 1024).toFixed(2)} MB •{" "}
+                      {new Date(transfer.start_time).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  {editingTransfer?.id === transfer.id ? (
+                    <div
+                      className="flex items-center gap-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <select
+                        value={editTransferForm.status}
+                        onChange={(e) =>
+                          setEditTransferForm({
+                            ...editTransferForm,
+                            status: e.target.value,
+                          })
+                        }
+                        className="text-xs border rounded px-2 py-1"
+                      >
+                        <option value="uploading">Uploading</option>
+                        <option value="completed">Completed</option>
+                        <option value="error">Error</option>
+                      </select>
+                      <button
+                        onClick={saveTransferEdit}
+                        className="text-green-600 hover:text-green-800"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingTransfer(null);
+                        }}
+                        className="text-gray-500 hover:text-gray-700"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                          transfer.status === "completed"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {transfer.status}
+                      </span>
+                      <div className="flex items-center gap-2 ml-2">
+                        <button
+                          onClick={(e) => handleEditTransfer(transfer, e)}
+                          className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => deleteTransfer(transfer.id, e)}
+                          className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {expandedTransferId === transfer.id ? (
+                        <ChevronUp className="w-5 h-5 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-gray-400" />
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {expandedTransferId === transfer.id && transferDetails && (
+                <div className="border-t border-gray-100 p-6 bg-gray-50">
+                  <h4 className="text-sm font-medium text-gray-700 mb-4">
+                    Transfer Speed (Bytes/sec)
+                  </h4>
+                  <div className="h-64 bg-white rounded-lg p-4 border border-gray-200 mb-6">
+                    <ResponsiveContainer
+                      width="100%"
+                      height="100%"
+                      minWidth={0}
+                      minHeight={0}
+                    >
+                      <LineChart data={transferDetails.metrics}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="timestamp"
+                          tickFormatter={(t) =>
+                            new Date(t).toLocaleTimeString()
+                          }
+                        />
+                        <YAxis />
+                        <Tooltip
+                          labelFormatter={(t) => new Date(t).toLocaleString()}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="speed_bps"
+                          stroke="#2563eb"
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <h4 className="text-sm font-medium text-gray-700 mb-4">
+                    Packet Capture
+                  </h4>
+                  <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="w-full text-xs text-left text-gray-500">
+                      <thead className="bg-gray-100 text-gray-700 uppercase">
+                        <tr>
+                          <th className="px-4 py-2">Time</th>
+                          <th className="px-4 py-2">Dir</th>
+                          <th className="px-4 py-2">Type</th>
+                          <th className="px-4 py-2">Size</th>
+                          <th className="px-4 py-2">Payload (Hex)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {transferDetails.packets.map((pkt: any) => (
+                          <tr
+                            key={pkt.id}
+                            className="border-b hover:bg-gray-50 font-mono"
+                          >
+                            <td className="px-4 py-2">
+                              {new Date(pkt.timestamp).toLocaleTimeString()}
+                            </td>
+                            <td className="px-4 py-2">
+                              <span
+                                className={
+                                  pkt.direction === "in"
+                                    ? "text-green-600"
+                                    : "text-blue-600"
+                                }
+                              >
+                                {pkt.direction === "in" ? "← IN" : "→ OUT"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2">{pkt.type}</td>
+                            <td className="px-4 py-2">{pkt.size} B</td>
+                            <td className="px-4 py-2 text-gray-400 truncate max-w-xs">
+                              {pkt.payload_preview}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Вкладка «Пакеты» */}
+      {activeTab === "packets" && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left text-gray-500 font-mono">
+              <thead className="bg-gray-50 text-gray-700 uppercase">
+                <tr>
+                  <th className="px-4 py-3">Time</th>
+                  <th className="px-4 py-3">Direction</th>
+                  <th className="px-4 py-3">Type</th>
+                  <th className="px-4 py-3">Size</th>
+                  <th className="px-4 py-3">Payload Preview</th>
+                </tr>
+              </thead>
+              <tbody>
+                {packets.map((pkt) => (
+                  <tr key={pkt.id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      {new Date(pkt.timestamp).toLocaleTimeString()}
+                    </td>
+                    <td className="px-4 py-2">
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-bold ${
+                          pkt.direction === "in"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}
+                      >
+                        {pkt.direction === "in" ? "RX" : "TX"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 font-semibold text-gray-700">
+                      {pkt.type}
+                    </td>
+                    <td className="px-4 py-2">{pkt.size}</td>
+                    <td className="px-4 py-2 text-gray-400 truncate max-w-md">
+                      {pkt.payload_preview}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+==================================================
+FILE: .\src\components\ErrorBoundaryComponent.tsx
+==================================================
+
+import React, { ErrorInfo, ReactNode } from 'react';
+
+interface Props {
+  children: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends React.Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  public static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('Uncaught error:', error, errorInfo);
+  }
+
+  public render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+          <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center">
+            <h2 className="text-2xl font-bold text-red-600 mb-4">Something went wrong</h2>
+            <p className="text-gray-600 mb-6">
+              The application encountered an unexpected error.
+            </p>
+            <div className="bg-gray-100 p-4 rounded-lg text-left text-xs font-mono text-gray-800 mb-6 overflow-auto max-h-40">
+              {this.state.error?.toString()}
+            </div>
+            <button
+              onClick={() => {
+                localStorage.clear();
+                window.location.reload();
+              }}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Clear Data & Reload
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+export default ErrorBoundary;
+
+
+==================================================
+FILE: .\src\components\Login.tsx
+==================================================
+
+import React, { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
+
+export default function Login({ onLogin }: { onLogin: (user: any) => void }) {
+  const [isRegister, setIsRegister] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [role, setRole] = useState("user");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [serverStatus, setServerStatus] = useState<"checking" | "ok" | "error">(
+    "checking",
+  );
+
+  React.useEffect(() => {
+    let isChecking = false;
+    const checkServer = async () => {
+      if (isChecking) {
+        console.log("Skipping checkServer, already checking");
+        return;
+      }
+      isChecking = true;
+      console.log("Checking server health...");
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+          console.log("Aborting health check due to timeout");
+          controller.abort();
+        }, 3000); // 3-секундный таймаут для проверки состояния.
+        const res = await fetch("/api/health", {
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timeoutId));
+        console.log("Health check response:", res.status);
+
+        if (res.ok) {
+          setServerStatus("ok");
+          setError(""); // Ошибка должна быть устранена, если сервер снова подключен к сети
+        } else {
+          setServerStatus("error");
+          // Отображать ошибку если ранее все было в порядке или проверка проходила корректно
+          if (serverStatus !== "error")
+            setError("Server is unreachable or database is locked.");
+        }
+      } catch (e: any) {
+        console.error("Health check failed:", e.name, e.message);
+        setServerStatus("error");
+        if (serverStatus !== "error") setError("Cannot connect to server.");
+      } finally {
+        isChecking = false;
+        console.log("Health check finished");
+      }
+    };
+    checkServer();
+    const interval = setInterval(checkServer, 5000);
+    return () => clearInterval(interval);
+  }, [serverStatus]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+    console.log("Form submitted", { isRegister, username, role });
+
+    const endpoint = isRegister ? "/api/auth/register" : "/api/auth/login";
+    const payload = isRegister
+      ? { username, password, role }
+      : { username, password };
+
+    try {
+      console.log("Sending request to", endpoint);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10с
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeoutId));
+
+      const data = await res.json();
+      console.log("Response:", res.status, data);
+
+      if (!res.ok) {
+        throw new Error(data.error || "Something went wrong");
+      }
+
+      if (isRegister) {
+        setIsRegister(false);
+        setError("Registration successful. Please login.");
+      } else {
+        sessionStorage.setItem("token", data.token);
+        sessionStorage.setItem("user", JSON.stringify(data.user));
+        onLogin(data.user);
+      }
+    } catch (err: any) {
+      console.error("Login error:", err);
+      if (err.name === "AbortError") {
+        setError("Request timed out. Please try again.");
+      } else {
+        setError(err.message);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+      <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-md border-t-4 border-google-blue dark:border-google-blue transition-colors duration-300">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold mb-2">
+            <span className="text-google-blue">G</span>
+            <span className="text-google-red">o</span>
+            <span className="text-google-yellow">o</span>
+            <span className="text-google-blue">g</span>
+            <span className="text-google-green">l</span>
+            <span className="text-google-red">e</span>
+            <span className="text-gray-700 dark:text-gray-200 ml-2 text-xl font-normal">
+              FileTransfer
+            </span>
+          </h1>
+          <h2 className="text-xl font-medium text-gray-600 dark:text-gray-300">
+            {isRegister ? "Create your account" : "Sign in to continue"}
+          </h2>
+          <div className="mt-2 flex items-center justify-center gap-2 text-xs">
+            <span
+              className={`w-2 h-2 rounded-full ${serverStatus === "ok" ? "bg-green-500" : serverStatus === "checking" ? "bg-yellow-500" : "bg-red-500"}`}
+            ></span>
+            <span className="text-gray-500 dark:text-gray-400">
+              {serverStatus === "ok"
+                ? "Server Online"
+                : serverStatus === "checking"
+                  ? "Checking Server..."
+                  : "Server Offline"}
+            </span>
+          </div>
+        </div>
+
+        {error && (
+          <div
+            className={`p-3 mb-6 rounded-lg text-sm flex items-center gap-2 ${
+              error.includes("successful")
+                ? "bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800"
+                : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800"
+            }`}
+          >
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              Username
+            </label>
+            <input
+              type="text"
+              name="username"
+              autoComplete="username"
+              required
+              className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-google-blue focus:border-google-blue outline-none transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Enter your username"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                autoComplete={isRegister ? "new-password" : "current-password"}
+                required
+                className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-google-blue focus:border-google-blue outline-none transition-all bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 pr-10"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              >
+                {showPassword ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {isRegister && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                Role
+              </label>
+              <div className="relative">
+                <select
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-google-blue focus:border-google-blue outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white appearance-none"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                  <svg
+                    className="w-4 h-4 text-gray-500 dark:text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M19 9l-7 7-7-7"
+                    ></path>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className={`w-full py-2.5 rounded-lg text-white font-medium transition-all transform active:scale-[0.98] shadow-md ${
+              isRegister
+                ? "bg-google-green hover:bg-green-600 shadow-green-200 dark:shadow-none"
+                : "bg-google-blue hover:bg-blue-600 shadow-blue-200 dark:shadow-none"
+            } ${isLoading ? "opacity-70 cursor-not-allowed" : ""}`}
+          >
+            {isLoading
+              ? "Processing..."
+              : isRegister
+                ? "Create Account"
+                : "Sign In"}
+          </button>
+        </form>
+
+        <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 text-center">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+            {isRegister ? "Already have an account?" : "Don't have an account?"}
+          </p>
+          <button
+            onClick={() => {
+              setIsRegister(!isRegister);
+              setError("");
+            }}
+            className={`text-sm font-medium hover:underline ${
+              isRegister ? "text-google-blue" : "text-google-blue"
+            }`}
+          >
+            {isRegister ? "Sign in instead" : "Create account"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+==================================================
+FILE: .\src\components\UserDashboard.tsx
+==================================================
+
+import React, { useState, useRef, useEffect } from "react";
+import {
+  UploadCloud,
+  CheckCircle,
+  AlertCircle,
+  Download,
+  File,
+  RefreshCw,
+} from "lucide-react";
+
+export default function UserDashboard({ user }: { user: any }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState<
+    "idle" | "connecting" | "uploading" | "success" | "error"
+  >("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [isConnected, setIsConnected] = useState(false);
+  const [availableFiles, setAvailableFiles] = useState<any[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const fileIdRef = useRef<number>(0);
+
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
+  const downloadBufferRef = useRef<Uint8Array[]>([]);
+  const downloadMetaRef = useRef<{ filename: string; size: number } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    fetchFiles();
+    const token = sessionStorage.getItem("token");
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${protocol}//${window.location.host}/api/ws`;
+
+    // Небольшая задержка для закрытия предыдущего соединения (обработка в режиме React Strict Mode)
+    const connectTimeout = setTimeout(() => {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+      ws.binaryType = "arraybuffer";
+
+      ws.onopen = () => {
+        // Отправьте аутентификацию немедленно при подключении
+        if (!token) return;
+        const tokenBytes = new TextEncoder().encode(token);
+        const authMsg = new Uint8Array(1 + tokenBytes.length);
+        authMsg[0] = 0x00;
+        authMsg.set(tokenBytes, 1);
+        ws.send(authMsg);
+      };
+
+      ws.onmessage = async (event) => {
+        if (typeof event.data === "string") {
+          const data = JSON.parse(event.data);
+
+          if (data.type === "auth_success") {
+            setIsConnected(true);
+          } else if (data.type === "error") {
+            setStatus("error");
+            setErrorMsg(data.message);
+            setDownloadingFile(null);
+            // Если сервер переполнен, разорвите соединение
+            if (data.message.includes("full")) {
+              ws.close();
+            }
+          } else if (data.type === "file_success") {
+            setStatus("success");
+            fetchFiles(); // Обновите список файлов после загрузки.
+          } else if (data.type === "file_list_update") {
+            fetchFiles(); // Обновлять список файлов при загрузке другим клиентом.
+          }
+        } else if (event.data instanceof ArrayBuffer) {
+          const view = new DataView(event.data);
+          const type = view.getUint8(0);
+
+          if (type === 0x05) {
+            // Загрузить Начало
+            const metaBytes = new Uint8Array(event.data.slice(1));
+            const metaStr = new TextDecoder().decode(metaBytes);
+            downloadMetaRef.current = JSON.parse(metaStr);
+            downloadBufferRef.current = [];
+            setDownloadProgress(0);
+            if (downloadMetaRef.current)
+              setDownloadingFile(downloadMetaRef.current.filename);
+          } else if (type === 0x06) {
+            // Скачать чанк
+            const chunk = new Uint8Array(event.data.slice(1));
+            downloadBufferRef.current.push(chunk);
+
+            // Рассчитать прогресс
+            if (downloadMetaRef.current) {
+              const currentSize = downloadBufferRef.current.reduce(
+                (acc, val) => acc + val.length,
+                0,
+              );
+              setDownloadProgress(
+                Math.round((currentSize / downloadMetaRef.current.size) * 100),
+              );
+            }
+          } else if (type === 0x07) {
+            // Конец загрузки
+            const blob = new Blob(downloadBufferRef.current);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = downloadMetaRef.current?.filename || "downloaded_file";
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            setDownloadingFile(null);
+            setDownloadProgress(0);
+            downloadBufferRef.current = [];
+          }
+        }
+      };
+
+      ws.onerror = () => {
+        if (!isConnected) {
+          setStatus("error");
+          setErrorMsg(
+            "Connection failed. Server might be full (max 3 clients).",
+          );
+        }
+      };
+
+      ws.onclose = (e) => {
+        setIsConnected(false);
+        if (e.code === 1008) {
+          setStatus("error");
+          setErrorMsg("Server full (max 3 clients). Please try again later.");
+        }
+      };
+    }, 300); // 300ms задержка
+
+    return () => {
+      clearTimeout(connectTimeout);
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.close();
+      }
+    };
+  }, []);
+
+  const fetchFiles = async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch("/api/files");
+      if (res.ok) {
+        setAvailableFiles(await res.json());
+      }
+    } catch (e) {
+      console.error("Failed to fetch files", e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const downloadFile = (id: number) => {
+    if (!wsRef.current || !isConnected) {
+      alert("Not connected to server");
+      return;
+    }
+
+    // Отправить запрос на загрузку (0x04)
+    const reqMsg = new Uint8Array(5);
+    reqMsg[0] = 0x04;
+    new DataView(reqMsg.buffer).setUint32(1, id, true);
+    wsRef.current.send(reqMsg);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+      setStatus("idle");
+      setProgress(0);
+    }
+  };
+
+  const uploadFile = () => {
+    if (!file || !wsRef.current || !isConnected) {
+      if (!isConnected) setErrorMsg("Not connected to server. Refresh page.");
+      return;
+    }
+
+    setStatus("uploading");
+    fileIdRef.current = Math.floor(Math.random() * 1000000);
+
+    // Отправить файл Начало
+    const metadata = JSON.stringify({ filename: file.name, size: file.size });
+    const metaBytes = new TextEncoder().encode(metadata);
+
+    const startMsg = new Uint8Array(5 + metaBytes.length);
+    startMsg[0] = 0x01;
+    new DataView(startMsg.buffer).setUint32(1, fileIdRef.current, true);
+    startMsg.set(metaBytes, 5);
+
+    wsRef.current.send(startMsg);
+
+    // Начните отправлять фрагменты
+    sendFileChunks(wsRef.current, file, fileIdRef.current);
+  };
+
+  const sendFileChunks = async (ws: WebSocket, file: File, fileId: number) => {
+    const CHUNK_SIZE = 1024 * 64; // 64KB chunks
+    let offset = 0;
+
+    const readChunk = (offset: number, size: number): Promise<ArrayBuffer> => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as ArrayBuffer);
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file.slice(offset, offset + size));
+      });
+    };
+
+    while (offset < file.size) {
+      if (ws.readyState !== WebSocket.OPEN) break;
+
+      const chunk = await readChunk(offset, CHUNK_SIZE);
+
+      const chunkMsg = new Uint8Array(5 + chunk.byteLength);
+      chunkMsg[0] = 0x02;
+      new DataView(chunkMsg.buffer).setUint32(1, fileId, true);
+      chunkMsg.set(new Uint8Array(chunk), 5);
+
+      ws.send(chunkMsg);
+
+      offset += chunk.byteLength;
+      setProgress(Math.round((offset / file.size) * 100));
+
+      if (ws.bufferedAmount > 1024 * 1024 * 5) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+
+    if (ws.readyState === WebSocket.OPEN) {
+      const endMsg = new Uint8Array(5);
+      endMsg[0] = 0x03;
+      new DataView(endMsg.buffer).setUint32(1, fileId, true);
+      ws.send(endMsg);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+        <h2 className="text-2xl font-medium text-gray-900 mb-6 flex justify-between items-center">
+          Upload File
+          <span
+            className={`text-xs px-2 py-1 rounded-full ${isConnected ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+          >
+            {isConnected ? "Connected" : "Disconnected"}
+          </span>
+        </h2>
+
+        <div className="border-2 border-dashed border-gray-300 rounded-xl p-10 text-center hover:bg-gray-50 transition-colors relative">
+          <input
+            type="file"
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            onChange={handleFileChange}
+            disabled={status === "uploading" || status === "connecting"}
+          />
+          <UploadCloud className="w-12 h-12 text-blue-500 mx-auto mb-4" />
+          <p className="text-gray-600 font-medium">
+            {file ? file.name : "Drag and drop a file or click to browse"}
+          </p>
+          {file && (
+            <p className="text-sm text-gray-400 mt-2">
+              {(file.size / 1024 / 1024).toFixed(2)} MB
+            </p>
+          )}
+        </div>
+
+        {file && status !== "idle" && (
+          <div className="mt-8">
+            <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
+              <span>
+                {status === "connecting"
+                  ? "Connecting..."
+                  : status === "uploading"
+                    ? "Uploading..."
+                    : status === "success"
+                      ? "Upload Complete"
+                      : "Error"}
+              </span>
+              <span>{progress}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+              <div
+                className={`h-2.5 rounded-full transition-all duration-300 ${status === "error" ? "bg-red-500" : status === "success" ? "bg-green-500" : "bg-blue-600"}`}
+                style={{ width: `${progress}%` }}
+              ></div>
+            </div>
+          </div>
+        )}
+
+        {status === "error" && (
+          <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+            <p className="text-sm">{errorMsg}</p>
+          </div>
+        )}
+
+        {status === "success" && (
+          <div className="mt-4 p-4 bg-green-50 text-green-700 rounded-lg flex items-start gap-3">
+            <CheckCircle className="w-5 h-5 shrink-0 mt-0.5" />
+            <p className="text-sm">File uploaded successfully!</p>
+          </div>
+        )}
+
+        <div className="mt-8 flex justify-end">
+          <button
+            onClick={uploadFile}
+            disabled={
+              !file ||
+              status === "uploading" ||
+              status === "connecting" ||
+              status === "success"
+            }
+            className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Start Upload
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-medium text-gray-900">Available Files</h2>
+          <button
+            onClick={fetchFiles}
+            disabled={isRefreshing}
+            className={`p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors ${isRefreshing ? "animate-spin" : ""}`}
+            title="Refresh List"
+          >
+            <RefreshCw className="w-5 h-5" />
+          </button>
+        </div>
+        {availableFiles.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">
+            No files available for download.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {availableFiles.map((f) => (
+              <div
+                key={f.id}
+                className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                    <File className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">{f.filename}</p>
+                    <p className="text-xs text-gray-500">
+                      {(f.total_size / 1024 / 1024).toFixed(2)} MB •{" "}
+                      {new Date(f.end_time).toLocaleString()}
+                    </p>
+                    {downloadingFile === f.filename && (
+                      <div className="mt-2 w-48 bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                          style={{ width: `${downloadProgress}%` }}
+                        ></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => downloadFile(f.id)}
+                  className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                  title="Download"
+                  disabled={!!downloadingFile}
+                >
+                  {downloadingFile === f.filename ? (
+                    <span className="text-xs font-medium text-blue-600">
+                      {downloadProgress}%
+                    </span>
+                  ) : (
+                    <Download className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+

@@ -45,5 +45,10 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
-  }
+  },
+  "description": "1.  **Install Node.js**: Ensure you have Node.js installed (v18 or higher recommended). 2.  **Install Dependencies**:     ```bash     npm install     ``` 3.  **Start the Server**:     ```bash     npm run dev     ```     This will start the backend server on port 3000 and the frontend.",
+  "main": "test-db.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }
