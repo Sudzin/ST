@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import ReactDOM from "react-dom/client";
+//import ReactDOM from "react-dom/client";
 
 const mainContainer = {
   display: "flex",
@@ -126,7 +126,7 @@ export default function Login({ onLogin }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setLoading("true");
+    setLoading(true);
 
     try {
       const authController = new AbortController();
@@ -274,8 +274,8 @@ export default function Login({ onLogin }) {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <Login />
-  </React.StrictMode>,
-);
+//ReactDOM.createRoot(document.getElementById("root")).render(
+//  <React.StrictMode>
+//    <Login />
+//  </React.StrictMode>,
+//);
