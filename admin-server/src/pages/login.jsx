@@ -1,6 +1,10 @@
 import React from "react";
+import ReactDOM from "react-dom/client";
 
-const cardStyle = { background: "#1e1e1e", padding: "40px" };
+const cardStyle = {
+  background: "#1e1e1e",
+  padding: "40px",
+};
 
 export default function Login() {
   return (
@@ -18,3 +22,9 @@ export default function Login() {
     </div>
   );
 }
+
+ReactDOM.createRoot(document.getElementByID("root")).render(
+  <React.StrictMode>
+    <Login />
+  </React.StrictMode>,
+);
