@@ -4,18 +4,15 @@ const http = require("http");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
-const FILE_SERVER_URL = "http://localhost:3000/api/ping";
-const INTERVAL_MS = 100000; // чтобы не заполняло консоль
+const FILE_SERVER_URL = "http://localhost:3000/api/health";
+const INTERVAL_MS = 100000;
 const ADMIN_SERVER_PORT = 3001;
-const db = require("../file-server/src/db.js");
+const db = require("../file-server/src/db.ts");
 const JWT_SECRET = process.env.JWT_SECRET;
-
-let adminServerOnline = false;
 
 if (!JWT_SECRET) {
   throw new Error("JWT token not found");
 }
-//console.log(`Начинаю пинговать файловый сервер: ${FILE_SERVER_URL}\n`);
 
 function checkFileServer() {
   http
@@ -41,6 +38,7 @@ setInterval(checkFileServer, INTERVAL_MS);
 checkFileServer();
 
 const adminServer = http.createServer((req, res) => {
+  // Настройка CORS под твой порт 5174 из vite.config.js
   res.setHeader("Access-Control-Allow-Origin", "http://localhost:5174");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS, POST");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -51,8 +49,9 @@ const adminServer = http.createServer((req, res) => {
     return;
   }
 
+  // Роут авторизации
   if (req.url === "/api/login" && req.method === "POST") {
-    let body = ""; // тело запроса
+    let body = "";
 
     req.on("data", (chunk) => {
       body += chunk.toString();
@@ -62,6 +61,7 @@ const adminServer = http.createServer((req, res) => {
       try {
         const { username, password } = JSON.parse(body);
         console.log("[Admin Server] Получен запрос на вход:", username);
+
         const user = db
           .prepare("SELECT * FROM users WHERE username = ?")
           .get(username);
@@ -90,8 +90,6 @@ const adminServer = http.createServer((req, res) => {
           { expiresIn: "24h" },
         );
 
-        // место под логирование
-
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(
           JSON.stringify({
@@ -106,17 +104,19 @@ const adminServer = http.createServer((req, res) => {
         res.end(JSON.stringify({ error: "Внутренняя ошибка сервера" }));
       }
     });
+    return; // Не даем коду провалиться дальше, пока идет чтение данных
+  }
+
+  // Роут проверки статуса
+  if (req.url === "/api/health" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok" }));
     return;
   }
 
-  if (req.url === "/api/health" && req.method === "GET") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-
-    res.end(JSON.stringify({ status: "ok" }));
-  } else {
-    res.writeHead(404, { "Content-Type": "text/plain" });
-    res.end("Not Found");
-  }
+  // Финальный фолбэк для неизвестных путей
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("Not Found");
 });
 
 adminServer.listen(ADMIN_SERVER_PORT, () => {
@@ -125,6 +125,3 @@ adminServer.listen(ADMIN_SERVER_PORT, () => {
   );
   console.log(`Начинаю пинговать файловый сервер: ${FILE_SERVER_URL}\n`);
 });
-
-//setInterval(checkFileServer, INTERVAL_MS);
-//checkFileServer();

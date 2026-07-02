@@ -56,15 +56,39 @@ const inputStyle = {
   boxSizing: "border-box",
 };
 
-export default function Login() {
+const errorBadgeStyle = {
+  padding: "12px",
+  marginBottom: "16px",
+  borderRadius: "6px",
+  fontSize: "14px",
+  backgroundColor: "rgba(244, 67, 54, 0.1)",
+  color: "#f44336",
+  border: "1px solid rgba(244, 67, 54, 0.3)",
+};
+
+export default function Login({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [serverStatus, setServerStatus] = useState("checking");
 
   useEffect(() => {
+    let isChecking = false;
+
     const fetchServerStatus = async () => {
+      if (isChecking) return;
+      isChecking = true;
+
       try {
-        const statusResponse = await fetch("http://localhost:3001/api/health");
+        const reqController = new AbortController();
+        const timeoutId = setTimeout(() => reqController.abort(), 3000);
+
+        const statusResponse = await fetch("http://localhost:3001/api/health", {
+          signal: reqController.signal,
+        });
+        clearTimeout(timeoutId);
+
         const statusData = await statusResponse.json();
 
         if (statusData && statusData.status === "ok") {
@@ -74,6 +98,8 @@ export default function Login() {
         }
       } catch (error) {
         setServerStatus("error"); // если бек выключен
+      } finally {
+        isChecking = false;
       }
     };
 
@@ -95,9 +121,50 @@ export default function Login() {
 
   const status = getADMServerStatus();
 
-  const handleSubmit = (e) => {
+  // тут будет логика авторизации
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Form submitted:", { username, password });
+    setError("");
+    setLoading("true");
+
+    try {
+      const authController = new AbortController();
+      const authTimeoutId = setTimeout(() => authController.abort(), 10000);
+
+      const res = await fetch("http://localhost:3001/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+        signal: authController.signal,
+      });
+      clearTimeout(authTimeoutId);
+
+      const authData = await res.json();
+
+      if (!res.ok) {
+        throw new Error(authData.error || "Что-то пошло не так");
+      }
+
+      if (authData.success) {
+        sessionStorage.setItem("token", authData.token);
+        sessionStorage.setItem("user", JSON.stringify(authData.user));
+        onLogin(authData.user);
+      }
+    } catch (err) {
+      console.error("Ошибка входа:", err);
+      if (err.name === "AbortError") {
+        setError(
+          "Время ожидания запроса истекло. Пожалуйста, попробуйте еще раз",
+        );
+      } else {
+        setError(err.message || "Не удается подключиться к серверу");
+      }
+    } finally {
+      setLoading(false);
+    }
+
+    // console.log(Форма отправлена:", { username, password }); -?
   };
 
   return (

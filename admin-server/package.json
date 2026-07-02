@@ -4,7 +4,6 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "vite",
     "dev": "concurrently \"vite\" \"node server.js\""
   },
   "keywords": [],
@@ -12,6 +11,8 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "jsonwebtoken": "^9.0.3",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
