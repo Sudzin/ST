@@ -1,5 +1,7 @@
 import React from "react";
 
+const cardStyle = { background: "#1e1e1e", padding: "40px" };
+
 export default function Login() {
   return (
     <div style={cardStyle}>
