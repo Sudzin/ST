@@ -2,6 +2,7 @@ const http = require("http");
 
 const FILE_SERVER_URL = "http://localhost:3000/api/ping";
 const INTERVAL_MS = 5000;
+const ADMIN_SERVER_PORT = 3001;
 
 console.log(`Начинаю пинговать файловый сервер: ${FILE_SERVER_URL}\n`);
 
