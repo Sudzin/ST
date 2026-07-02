@@ -1,8 +1,11 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 
-const dbPath = path.join(process.cwd(), "data.db");
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const dbPath = path.join(__dirname, "..", "data.db");
 
 let db;
 try {

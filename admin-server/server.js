@@ -7,7 +7,7 @@ const jwt = require("jsonwebtoken");
 const FILE_SERVER_URL = "http://localhost:3000/api/health";
 const INTERVAL_MS = 100000;
 const ADMIN_SERVER_PORT = 3001;
-const db = require("../file-server/src/db.ts");
+const db = require("../file-server/src/db.ts").default;
 const JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
