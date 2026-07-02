@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import ReactDOM from "react-dom/client";
 
 const mainContainer = {
@@ -129,7 +129,7 @@ export default function Login() {
             Sign in to continue
           </h2>
 
-          {/* пока заглушка, потом буду проверять статус сервера администрирования */}
+          {/* берётся из status */}
           <div
             style={{
               display: "flex",
