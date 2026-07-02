@@ -65,9 +65,9 @@ export default function Login() {
     const fetchServerStatus = async () => {
       try {
         const statusResponse = await fetch("http://localhost:3001/api/health");
-        const statusData = await response.json();
+        const statusData = await statusResponse.json();
 
-        if (statusData === "ok") {
+        if (statusData && statusData.status === "ok") {
           setServerStatus("ok");
         } else {
           setServerStatus("error");
@@ -145,10 +145,11 @@ export default function Login() {
                 width: "8px",
                 height: "8px",
                 borderRadius: "50%",
-                backgroundColor: "#4caf50",
+                backgroundColor: status.color,
+                transition: "background-color 0.3s ease",
               }}
             ></span>
-            <span style={{ color: "#888" }}>Server Online</span>
+            <span style={{ color: "#888" }}>{status.text}</span>
           </div>
         </div>
 
