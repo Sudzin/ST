@@ -6,19 +6,29 @@ const cardStyle = {
   padding: "40px",
 };
 
+const mainContainer = {
+  display: flex,
+  justifyContent: "center",
+  alignItems: "center",
+  minHeight: "100vh",
+  boxSizing: "border-box",
+};
+
 export default function Login() {
   return (
-    <div style={cardStyle}>
-      <h2
-        style={{
-          color: "#4caf50",
-          textAlign: "center",
-          marginTop: 0,
-          marginBottom: "20px",
-        }}
-      >
-        Login
-      </h2>
+    <div style={mainContainer}>
+      <div style={cardStyle}>
+        <h2
+          style={{
+            color: "#4caf50",
+            textAlign: "center",
+            marginTop: 0,
+            marginBottom: "20px",
+          }}
+        >
+          Login
+        </h2>
+      </div>
     </div>
   );
 }
