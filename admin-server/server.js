@@ -197,6 +197,24 @@ app.post("/api/events/packet", (req, res) => {
   }
 });
 
+app.post("/api/events/transfer/path", (req, res) => {
+  const key = req.headers["x-service-key"];
+  if (key !== process.env.SERVICE_KEY) {
+    return res.status(401).json({ error: "Invalid secret key" });
+  }
+  try {
+    const { file_id, file_path } = req.body;
+    db.prepare("UPDATE transfers SET file_path = ? WHERE file_id = ?").run(
+      file_path,
+      file_id,
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[Admin server] Ошибка обновления пути:", err);
+    res.status(500).json({ error: "Внутренняя ошибка" });
+  }
+});
+
 app.get("/api/admin/stats", authenticateAdmin, (req, res) => {
   try {
     const totalBytes =
