@@ -111,6 +111,36 @@ const adminServer = http.createServer((req, res) => {
     return;
   }
 
+  if (req.url === "api/events/log" && req.method === "POST") {
+    const key = req.headers["x-service-key"];
+    if (key !== process.env.SERVICE_KEY) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Invalid seckret key" }));
+      return;
+    }
+
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+    req.on("end", () => {
+      try {
+        const { user_id, username, action, details } = JSON.parse(body);
+        db.prepare(
+          "INSERT INTO logs (iser_id, username, action, details) VALUES (?, ?, ?, ?)",
+        ).run(user_id, username, action, details);
+        console.log(`[Admin server] Записан лог: ${username} -> ${action}`);
+        req.writeHead(200, { "Content-Type": "application/json" });
+        req.end(JSON.stringify({ success: true }));
+      } catch (err) {
+        console.log("[Admin server] Ошибка записи лога: ", err);
+        req.writeHead(500, { "Content-Type": "application/json" });
+        req.end(JSON.stringify({ error: "Внутренняя ошибка" }));
+      }
+    });
+    return;
+  }
+
   res.writeHead(404, { "Content-Type": "text/plain" });
   res.end("Not Found");
 });
