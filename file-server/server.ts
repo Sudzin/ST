@@ -100,10 +100,9 @@ async function startServer() {
   });
 
   app.get("/api/files", (req, res) => {
-    // Возвращать только завершенные передачи
     const files = db
       .prepare(
-        'SELECT id, filename, total_size, end_time, user_id FROM transfers WHERE status = "completed" AND file_path IS NOT NULL ORDER BY end_time DESC',
+        `SELECT id, filename, total_size, end_time, user_id FROM transfers WHERE status = 'completed' AND file_path IS NOT NULL ORDER BY end_time DESC`,
       )
       .all();
     res.json(files);
