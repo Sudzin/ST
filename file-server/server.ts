@@ -342,10 +342,10 @@ async function startServer() {
         msg.filePath,
         msg.fileId.toString(),
       );
-    } else if (msg.type === "ack_end") {
-      db.prepare(
-        "UPDATE stats SET total_files = total_files + 1 WHERE id = 1",
-      ).run();
+      reportToAdmin("/api/events/transfer/path", {
+        file_id: msg.fileId.toString(),
+        file_path: msg.filePath,
+      });
     }
   });
 
@@ -462,18 +462,13 @@ async function startServer() {
           currentFileId = fileId;
           currentBytesReceived = 0;
 
-          const info = db
-            .prepare(
-              "INSERT INTO transfers (file_id, filename, user_id, total_size, status) VALUES (?, ?, ?, ?, ?)",
-            )
-            .run(
-              fileId.toString(),
-              metadata.filename,
-              authenticatedUser.id,
-              metadata.size,
-              "uploading",
-            );
-          dbTransferId = Number(info.lastInsertRowid);
+          reportToAdmin("/api/events/transfer/start", {
+            file_id: fileId.toString(),
+            filename: metadata.filename,
+            user_id: authenticatedUser.id,
+            total_size: metadata.size,
+            file_path: null, // путь потом
+          });
 
           logPacket("in", "start", size, message);
 
@@ -499,17 +494,15 @@ async function startServer() {
           logPacket("in", "chunk", size, chunk);
 
           const now = Date.now();
-          if (now - lastMetricTime > 1000 && dbTransferId) {
+          if (now - lastMetricTime > 1000 && currentFileId) {
             const duration = (now - lastMetricTime) / 1000;
             const speed = Math.round(bytesSinceLastMetric / duration);
 
-            db.prepare(
-              "INSERT INTO transfer_metrics (transfer_id, bytes_transferred, speed_bps) VALUES (?, ?, ?)",
-            ).run(dbTransferId, currentBytesReceived, speed);
-
-            db.prepare(
-              "UPDATE transfers SET transferred_size = ? WHERE id = ?",
-            ).run(currentBytesReceived, dbTransferId);
+            reportToAdmin("/api/events/transfer/progress", {
+              file_id: currentFileId.toString(),
+              bytes_transferred: currentBytesReceived,
+              speed_bps: speed,
+            });
 
             lastMetricTime = now;
             bytesSinceLastMetric = 0;
@@ -522,14 +515,11 @@ async function startServer() {
 
           logPacket("in", "end", size, message);
 
-          db.prepare(
-            "UPDATE stats SET total_bytes = total_bytes + ? WHERE id = 1",
-          ).run(currentBytesReceived);
-
-          if (dbTransferId) {
-            db.prepare(
-              "UPDATE transfers SET status = ?, end_time = CURRENT_TIMESTAMP, transferred_size = ? WHERE id = ?",
-            ).run("completed", currentBytesReceived, dbTransferId);
+          if (currentFileId) {
+            reportToAdmin("/api/events/transfer/end", {
+              file_id: currentFileId.toString(),
+              status: "completed",
+            });
           }
 
           reportToAdmin("/api/events/log", {
@@ -625,14 +615,12 @@ async function startServer() {
 
     ws.on("close", () => {
       if (authenticatedUser) {
-        db.prepare(
-          "INSERT INTO logs (user_id, username, action, details) VALUES (?, ?, ?, ?)",
-        ).run(
-          authenticatedUser.id,
-          authenticatedUser.username,
-          "disconnect",
-          "User disconnected",
-        );
+        reportToAdmin("/api/events/log", {
+          user_id: authenticatedUser.id,
+          username: authenticatedUser.username,
+          action: "disconnect",
+          details: "User disconnected",
+        });
       }
     });
   });
