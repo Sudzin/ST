@@ -36,7 +36,8 @@ db.exec(`
     end_time DATETIME,
     status TEXT,
     total_size INTEGER,
-    transferred_size INTEGER DEFAULT 0
+    transferred_size INTEGER DEFAULT 0,
+    file_path TEXT
   );
 
   CREATE TABLE IF NOT EXISTS packets (
