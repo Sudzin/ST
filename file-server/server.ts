@@ -477,14 +477,12 @@ async function startServer() {
 
           logPacket("in", "start", size, message);
 
-          db.prepare(
-            "INSERT INTO logs (user_id, username, action, details) VALUES (?, ?, ?, ?)",
-          ).run(
-            authenticatedUser.id,
-            authenticatedUser.username,
-            "upload_start",
-            `Started uploading ${metadata.filename}`,
-          );
+          reportToAdmin("/api/events/log", {
+            user_id: authenticatedUser.id,
+            username: authenticatedUser.username,
+            action: "upload_start",
+            details: `Started uploading ${metadata.filename}`,
+          });
 
           fileWorker.postMessage({
             type: "start",
@@ -534,14 +532,12 @@ async function startServer() {
             ).run("completed", currentBytesReceived, dbTransferId);
           }
 
-          db.prepare(
-            "INSERT INTO logs (user_id, username, action, details) VALUES (?, ?, ?, ?)",
-          ).run(
-            authenticatedUser.id,
-            authenticatedUser.username,
-            "upload_end",
-            `Finished uploading file ID ${fileId}, total bytes: ${currentBytesReceived}`,
-          );
+          reportToAdmin("/api/events/log", {
+            user_id: authenticatedUser.id,
+            username: authenticatedUser.username,
+            action: "upload_end",
+            details: `Finished uploading file ID ${fileId}, total bytes: ${currentBytesReceived}`,
+          });
 
           fileWorker.postMessage({ type: "end", fileId });
           ws.send(JSON.stringify({ type: "file_success", fileId }));
@@ -604,14 +600,12 @@ async function startServer() {
             ws.send(endMsg);
             logPacket("out", "download_end", 1, endMsg);
 
-            db.prepare(
-              "INSERT INTO logs (user_id, username, action, details) VALUES (?, ?, ?, ?)",
-            ).run(
-              authenticatedUser.id,
-              authenticatedUser.username,
-              "download",
-              `Downloaded file ${transfer.filename}`,
-            );
+            reportToAdmin("/api/events/log", {
+              user_id: authenticatedUser.id,
+              username: authenticatedUser.username,
+              action: "download",
+              details: `Downloaded file ${transfer.filename}`,
+            });
           });
 
           fileStream.on("error", (err) => {
