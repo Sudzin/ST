@@ -93,6 +93,7 @@ app.post("/api/events/log", (req, res) => {
     console.log(`[Admin server] Записан лог: ${username} -> ${action}`);
     res.json({ success: true });
   } catch (err) {
+    console.error("[Admin server] Ошибка при записи лога:", err);
     res.status(500).json({ error: "Внутренняя ошибка" });
   }
 });

@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import { WebSocketServer, WebSocket } from "ws";
@@ -8,6 +11,7 @@ import jwt from "jsonwebtoken";
 import db from "./src/db.js";
 import archiver from "archiver";
 import fs from "fs";
+import { reportToAdmin } from "./src/adminReporter.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_key_123";
 const PORT = 3000;
@@ -259,9 +263,12 @@ async function startServer() {
         { expiresIn: "24h" },
       );
 
-      db.prepare(
-        "INSERT INTO logs (user_id, username, action, details) VALUES (?, ?, ?, ?)",
-      ).run(user.id, user.username, "login", "User logged in");
+      reportToAdmin("/api/events/log", {
+        user_id: user.id,
+        username: user.username,
+        action: "login",
+        details: "User logged in",
+      });
 
       console.log("[Server] Login success:", username);
       res.json({
