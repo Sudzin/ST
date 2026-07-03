@@ -97,15 +97,15 @@ app.post("/api/events/log", (req, res) => {
   }
 });
 
-app.get("/api/events/transfer/start", (req, res) => {
-  const key = req.headers["x-servise-key"];
+app.post("/api/events/transfer/start", (req, res) => {
+  const key = req.headers["x-service-key"];
   if (key !== process.env.SERVICE_KEY) {
     return res.status(401).json({ error: "Invalid secret key" });
   }
   try {
     const { file_id, filename, user_id, total_size, file_path } = req.body;
     db.prepare(
-      "INSERT INTO transfers (file_id, filename, user_id, total_size, file_path) VALUES (?, ?, ?, ?, 'in_progress')",
+      "INSERT INTO transfers (file_id, filename, user_id, total_size, file_path, status) VALUES (?, ?, ?, ?, ?, 'in_progress')",
     ).run(file_id, filename, user_id, total_size, file_path);
     console.log(`[Admin server] Начало передачи: ${filename}`);
     res.json({ success: true });
@@ -115,7 +115,7 @@ app.get("/api/events/transfer/start", (req, res) => {
 });
 
 app.post("/api/events/transfer/progress", (req, res) => {
-  const key = req.headers["x-secret-key"];
+  const key = req.headers["x-service-key"];
   if (key !== process.env.SERVICE_KEY) {
     return res.status(401).json({ error: "Invalid secret key" });
   }
@@ -141,17 +141,17 @@ app.post("/api/events/transfer/progress", (req, res) => {
   }
 });
 
-app.post("/api/events/transpher/end", (req, res) => {
-  const key = req.headers["x-secret=key"];
+app.post("/api/events/transfer/end", (req, res) => {
+  const key = req.headers["x-service-key"];
   if (key !== process.env.SERVICE_KEY) {
     return res.status(401).json({ error: "Invalid secret key" });
   }
   try {
     const { file_id, status } = req.body;
     const transfer = db
-      .prepare("SELECT id FROM transfer WHERE file_id =?")
+      .prepare("SELECT id FROM transfers WHERE file_id = ?")
       .get(file_id);
-    if (!transfer) return res.status(401).json({ error: "Трансфер не найден" });
+    if (!transfer) return res.status(404).json({ error: "Трансфер не найден" });
 
     db.prepare(
       "UPDATE transfers SET status = ?, end_time = CURRENT_TIMESTAMP WHERE id = ?",
@@ -159,7 +159,7 @@ app.post("/api/events/transpher/end", (req, res) => {
 
     if (status === "completed") {
       const t = db
-        .prepare("SELECT total_size FROM transfer WHERE id = ?")
+        .prepare("SELECT total_size FROM transfers WHERE id = ?")
         .get(transfer.id);
       db.prepare(
         "UPDATE stats SET total_files = total_files + 1, total_bytes = total_bytes + ? WHERE id = 1",
@@ -175,21 +175,21 @@ app.post("/api/events/transpher/end", (req, res) => {
   }
 });
 
-app.post("/api.events/packet", (req, res) => {
-  const key = req.headers["x-secret-key"];
+app.post("/api/events/packet", (req, res) => {
+  const key = req.headers["x-service-key"];
   if (key !== process.env.SERVICE_KEY) {
     return res.status(401).json({ error: "Invalid secret key" });
   }
   try {
-    const { file_id, direction, type, size, playload_previev } = req.body;
+    const { file_id, direction, type, size, payload_preview } = req.body;
     const transfer = db
-      .prepare("SELECT id FROM transfer WHERE file_id =?")
+      .prepare("SELECT id FROM transfers WHERE file_id = ?")
       .get(file_id);
     if (!transfer) return res.status(404).json({ error: "Трансфер не найден" });
 
     db.prepare(
-      "INSERT INTO packet (transfer_id, direction, type, size, payload_preview) VALUES (?, ?, ?, ?)",
-    ).run(transfer_id, direction, type, size, payload_preview);
+      "INSERT INTO packets (transfer_id, direction, type, size, payload_preview) VALUES (?, ?, ?, ?, ?)",
+    ).run(transfer.id, direction, type, size, payload_preview);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: "Внутренняя ошибка" });
