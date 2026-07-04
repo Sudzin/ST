@@ -419,6 +419,22 @@ app.put("/api/admin/users/:id", authenticateAdmin, async (req, res) => {
   }
 });
 
+app.delete("/api/admin/users/:id", authenticateAdmin, (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    if (Number(userId) === req.userId.id) {
+      return res.status(400).json({ error: "Нельзя удалить себя" });
+    }
+
+    db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[Admin server] Ошибка удаления пользователя", err);
+    res.status(500).json({ error: "Внутренняя ошибка" });
+  }
+});
+
 app.listen(ADMIN_SERVER_PORT, () => {
   console.log(
     `[Admin server] Работает на http://localhost:${ADMIN_SERVER_PORT}`,
