@@ -23,7 +23,7 @@ const cardStyle = {
   boxShadow: "0 8px 24px rgba(0, 0, 0, 0.5)",
 };
 
-const cardLaberStyle = {
+const cardLabelStyle = {
   color: "#888",
   fontSize: "32px",
   marginBottom: "8px",
