@@ -373,23 +373,29 @@ app.get("/api/admin/users", authenticateAdmin, (req, res) => {
   }
 });
 
-app.post("/api/admin/users", authenticateAdmin, (req, res) => {
+app.post("/api/admin/users", authenticateAdmin, async (req, res) => {
   try {
     const { username, password, role } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({ error: "Укажите имя пользователя и пароль" });
+      return res
+        .status(400)
+        .json({ error: "Укажите имя пользователя и пароль" });
     }
 
     const hash = await bcrypt.hash(password, 10);
-    const info = db.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)").run(username, hash, role || "admin");
-    res.json({success:true, id:info.lastInsertRowid});
+    const info = db
+      .prepare(
+        "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
+      )
+      .run(username, hash, role || "admin");
+    res.json({ success: true, id: info.lastInsertRowid });
   } catch (err) {
     if (err.message.includes("UNIQUE constraint failed")) {
       res.status(500).json({ error: "Такого пользователя не существует" });
     }
     console.error("[Admin server] Ошибка создания пользователя:", err);
-    res.status(500).json({error: "Внутренняя ошибка"})
+    res.status(500).json({ error: "Внутренняя ошибка" });
   }
 });
 
