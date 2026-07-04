@@ -223,7 +223,7 @@ app.post("/api/events/connection", (req, res) => {
   }
 
   try {
-    const { iser_id, username, event } = req.body;
+    const { user_id, username, event } = req.body;
 
     if (event === "connect") {
       activeConnections.set(user_id, { username, connectedAt: Date.now() });
