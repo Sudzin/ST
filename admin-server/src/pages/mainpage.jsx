@@ -100,6 +100,9 @@ export default function MainPage() {
   const [transfer, setTransfer] = useState([]);
   const [logs, setLogs] = useState([]);
   const [onlineUser, setOnlineUser] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [newUsername, setNewUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("");
 
   useEffect(() => {
     const token = sessionStorage.getItem("token");
@@ -180,6 +183,23 @@ export default function MainPage() {
     const interval = setInterval(fetchConnectons, 3000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  const fetchUsers = () => {
+    const token = sessionStorage.getItem("token");
+
+    fetch("http://localhost:3001/api/admin/users", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => setUsers())
+      .catch((err) => {
+        console.error("Не удалось загрузить пользователей");
+      });
+  };
+
+  useEffect(() => {
+    fetchUsers();
   }, []);
 
   const handleDeleteTransfer = (id) => {
