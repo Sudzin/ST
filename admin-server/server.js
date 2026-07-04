@@ -391,7 +391,7 @@ app.post("/api/admin/users", authenticateAdmin, async (req, res) => {
       .run(username, hash, role || "admin");
     res.json({ success: true, id: info.lastInsertRowid });
   } catch (err) {
-    if (err.message.includes("UNIQUE constraint failed")) {
+    if (err.message && err.message.includes("UNIQUE constraint failed")) {
       res.status(500).json({ error: "Такого пользователя не существует" });
     }
     console.error("[Admin server] Ошибка создания пользователя:", err);
@@ -410,7 +410,7 @@ app.put("/api/admin/users/:id", authenticateAdmin, async (req, res) => {
         "UPDATE users SET role = ?, password_hash = ?, WHERE id = ?",
       ).run(role, hash, userId);
     } else {
-      db.prepare("UPDATE users SET role = ?, WHERE id = ?").run(role, userId);
+      db.prepare("UPDATE users SET role = ? WHERE id = ?").run(role, userId);
     }
     res.json({ success: true });
   } catch (err) {
@@ -423,7 +423,7 @@ app.delete("/api/admin/users/:id", authenticateAdmin, (req, res) => {
   try {
     const userId = req.params.id;
 
-    if (Number(userId) === req.userId.id) {
+    if (Number(userId) === req.user.id) {
       return res.status(400).json({ error: "Нельзя удалить себя" });
     }
 

@@ -192,7 +192,9 @@ export default function MainPage() {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
-      .then((data) => setUsers())
+      .then((data) => {
+        setUsers(Array.isArray(data) ? data : []);
+      })
       .catch((err) => {
         console.error("Не удалось загрузить пользователей");
       });
@@ -203,7 +205,7 @@ export default function MainPage() {
   }, []);
 
   const handleCreateUser = () => {
-    if (!newUser || !newPassword) {
+    if (!newUsername || !newPassword) {
       alert("Запомните логин и пароль");
       return;
     }
@@ -213,10 +215,14 @@ export default function MainPage() {
     fetch("http://localhost:3001/api/admin/users", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json ",
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ newUsername, newPassword, role: "admin" }),
+      body: JSON.stringify({
+        username: newUsername,
+        password: newPassword,
+        role: "admin",
+      }),
     })
       .then((res) => res.json())
       .then((data) => {
@@ -247,7 +253,7 @@ export default function MainPage() {
         if (data.success) {
           setUsers((prev) => prev.filter((u) => u.id !== id));
         } else {
-          alter(data.error || "Не удалось удалить пользователя");
+          alert(data.error || "Не удалось удалить пользователя");
         }
       })
       .catch((err) => {
@@ -395,6 +401,85 @@ export default function MainPage() {
                 <td style={tdStyle}>{log.action}</td>
                 <td style={tdStyle}>{log.details}</td>
                 <td style={tdStyle}>{formatDate(log.timestamp)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={tableContainerStyle}>
+        <h2>Пользователи-администраторы</h2>
+
+        <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+          <input
+            type="text"
+            placeholder="Имя пользователя"
+            value={newUsername}
+            onChange={(e) => setNewUsername(e.target.value)}
+            style={{
+              padding: "8px 12px",
+              borderRadius: "6px",
+              border: "1px solid #333",
+              background: "#1e1e1e",
+              color: "#fff",
+            }}
+          />
+          <input
+            type="password"
+            placeholder="Пароль"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            style={{
+              padding: "8px 12px",
+              borderRadius: "6px",
+              border: "1px solid #333",
+              background: "#1e1e1e",
+              color: "#fff",
+            }}
+          />
+          <button
+            onClick={handleCreateUser}
+            style={{
+              background: "#1f4d2e",
+              color: "#4ade80",
+              border: "none",
+              borderRadius: "6px",
+              padding: "8px 16px",
+              cursor: "pointer",
+            }}
+          >
+            Создать
+          </button>
+        </div>
+
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              <th style={thStyle}>Имя</th>
+              <th style={thStyle}>Роль</th>
+              <th style={thStyle}>Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id}>
+                <td style={tdStyle}>{u.username}</td>
+                <td style={tdStyle}>{u.role}</td>
+                <td style={tdStyle}>
+                  <button
+                    onClick={() => handleDeleteUser(u.id)}
+                    style={{
+                      background: "#4d1f1f",
+                      color: "#f87171",
+                      border: "none",
+                      borderRadius: "6px",
+                      padding: "6px 12px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Удалить
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
