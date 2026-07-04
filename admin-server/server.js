@@ -362,6 +362,37 @@ app.get("/api/admin/connections", authenticateAdmin, (req, res) => {
   res.json(list);
 });
 
+app.get("/api/admin/users", authenticateAdmin, (req, res) => {
+  try {
+    const users = db
+      .prepare("SELECT id, username, role FROM users ORDER BY id ASC")
+      .all();
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: "Не удалось загрузить пользователей" });
+  }
+});
+
+app.post("/api/admin/users", authenticateAdmin, (req, res) => {
+  try {
+    const { username, password, role } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ error: "Укажите имя пользователя и пароль" });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+    const info = db.prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)").run(username, hash, role || "admin");
+    res.json({success:true, id:info.lastInsertRowid});
+  } catch (err) {
+    if (err.message.includes("UNIQUE constraint failed")) {
+      res.status(500).json({ error: "Такого пользователя не существует" });
+    }
+    console.error("[Admin server] Ошибка создания пользователя:", err);
+    res.status(500).json({error: "Внутренняя ошибка"})
+  }
+});
+
 app.listen(ADMIN_SERVER_PORT, () => {
   console.log(
     `[Admin server] Работает на http://localhost:${ADMIN_SERVER_PORT}`,
