@@ -41,7 +41,7 @@ const tableContainerStyle = {
 const tableStyle = {
   width: "100%",
   borderCollapse: "collapse",
-  bacground: "#1e1e1e",
+  background: "#1e1e1e",
   borderRadius: "12px",
   overflow: "hidden",
 };
@@ -157,10 +157,12 @@ export default function MainPage() {
         <h2>История передач</h2>
         <table style={tableStyle}>
           <thead>
-            <th style={thStyle}>Файл</th>
-            <th style={thStyle}>Размер</th>
-            <th style={thStyle}>Статус</th>
-            <th style={thStyle}>Начало</th>
+            <tr>
+              <th style={thStyle}>Файл</th>
+              <th style={thStyle}>Размер</th>
+              <th style={thStyle}>Статус</th>
+              <th style={thStyle}>Начало</th>
+            </tr>
           </thead>
           <tbody>
             {transfer.map((t) => (
