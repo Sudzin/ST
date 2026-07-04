@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "concurrently \"vite\" \"node server.js\""
+    "predev": "node scripts/seedAdmin",
+    "dev": "concurrently \"vite\" \"node server.js\"",
+    "seed": "node scripts/seedAdmin.js"
   },
   "keywords": [],
   "author": "",

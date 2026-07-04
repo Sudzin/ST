@@ -4,7 +4,7 @@ const pageStyle = {
   color: "#f5f5f5",
   background: "#121212",
   minHeight: "100vh",
-  padding: "20px",
+  padding: "40px",
   fontFamily: "sans-serif",
   boxSizing: "border-box",
 };
@@ -25,7 +25,7 @@ const cardStyle = {
 
 const cardLabelStyle = {
   color: "#888",
-  fontSize: "32px",
+  fontSize: "14px",
   marginBottom: "8px",
 };
 
@@ -33,6 +33,18 @@ const cardValueStyle = {
   fontSize: "32px",
   fontWeight: "bold",
 };
+
+function formatBytes(bytes) {
+  if (!bytes) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let i = 0;
+  let value = bytes;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i++;
+  }
+  return `${value.toFixed(1)} ${units[i]}`;
+}
 
 export default function MainPage() {
   const [stats, setStats] = useState(null);
@@ -42,24 +54,27 @@ export default function MainPage() {
     const token = sessionStorage.getItem("token");
 
     fetch("http://localhost:3001/api/admin/stats", {
-      headers: { Authorization: `Bearee ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     })
       .then((res) => res.json())
       .then((data) => {
         setStats(data);
       })
       .catch((err) => {
-        console.error("Не удалось загрузить статистику: ", err);
+        console.error("Не удалось загрузить статистику:", err);
         setError("Не удалось загрузить статистику");
       });
   }, []);
 
   return (
     <div style={pageStyle}>
-      <h1>Панель администрирования</h1>
+      <h1>Панель администратора</h1>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
-      {!stats && error && <p>Загрузка...</p>}
+
+      {!stats && !error && <p>Загрузка...</p>}
 
       {stats && (
         <div style={cardsContainerStyle}>
