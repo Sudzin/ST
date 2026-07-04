@@ -399,6 +399,26 @@ app.post("/api/admin/users", authenticateAdmin, async (req, res) => {
   }
 });
 
+app.put("/api/admin/users/:id", authenticateAdmin, async (req, res) => {
+  try {
+    const { role, password } = req.body;
+    const userId = req.params.id;
+
+    if (password) {
+      const hash = await bcrypt.hash(password, 10);
+      db.prepare(
+        "UPDATE users SET role = ?, password_hash = ?, WHERE id = ?",
+      ).run(role, hash, userId);
+    } else {
+      db.prepare("UPDATE users SET role = ?, WHERE id = ?").run(role, userId);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[Admin server] Ошибка обновления пользователя", err);
+    res.status(500).json({ error: "Внутренняя ошибка" });
+  }
+});
+
 app.listen(ADMIN_SERVER_PORT, () => {
   console.log(
     `[Admin server] Работает на http://localhost:${ADMIN_SERVER_PORT}`,
