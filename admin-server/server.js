@@ -235,7 +235,7 @@ app.post("/api/events/connection", (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("[Admin server] Ошибка обработки подключения", err);
-    res.json({ error: "Внутренняя ошибка" });
+    res.status(500).json({ error: "Внутренняя ошибка" });
   }
 });
 
@@ -349,6 +349,17 @@ app.get("/api/admin/logs", authenticateAdmin, (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "Не удалось загрузить системные логи" });
   }
+});
+
+app.get("/api/admin/connections", authenticateAdmin, (req, res) => {
+  const list = Array.from(activeConnections.entries()).map(
+    ([user_id, info]) => ({
+      user_id,
+      username: info.username,
+      connectedAt: info.connectedAt,
+    }),
+  );
+  res.json(list);
 });
 
 app.listen(ADMIN_SERVER_PORT, () => {

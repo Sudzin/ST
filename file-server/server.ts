@@ -628,7 +628,7 @@ async function startServer() {
           details: "User disconnected",
         });
 
-        reportToAdmin("api/events/connection", {
+        reportToAdmin("/api/events/connection", {
           user_id: authenticatedUser.id,
           username: authenticatedUser.username,
           event: "disconnect",
