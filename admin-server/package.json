@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "predev": "node scripts/seedAdmin",
-    "dev": "concurrently \"vite\" \"node server.js\"",
+    "dev": "concurrently \"vite\" \"nodemon server.js\"",
     "seed": "node scripts/seedAdmin.js"
   },
   "keywords": [],
@@ -23,6 +23,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^6.0.3",
     "concurrently": "^10.0.3",
+    "nodemon": "^3.1.14",
     "vite": "^8.1.3"
   }
 }
