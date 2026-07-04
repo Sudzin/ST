@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from "react";
 
+const pageStyle = {
+  color: "#f5f5f5",
+  background: "#121212",
+  minHeight: "100vh",
+  padding: "20px",
+  fontFamily: "sans-serif";
+boxSizing: "border-box",
+};
+
 export default function MainPage() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
