@@ -94,6 +94,7 @@ export default function MainPage() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [transfer, setTransfer] = useState([]);
+  const [logs, setLogs] = useState([]);
 
   useEffect(() => {
     const token = sessionStorage.getItem("token");
@@ -125,6 +126,19 @@ export default function MainPage() {
       })
       .catch((err) => {
         console.error("Не удалось загрузить трансферы:", err);
+      });
+  }, []);
+
+  useEffect(() => {
+    const token = sessionStorage.getItem("token");
+
+    fetch("http://localhost:3001/api/admin/logs", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => setLogs(data))
+      .catch((err) => {
+        console.error("Не удалось загрузить логи:", err);
       });
   }, []);
 
@@ -174,6 +188,32 @@ export default function MainPage() {
                 </td>
                 <td style={tdStyle}>
                   {new Date(t.start_time).toLocaleString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={tableContainerStyle}>
+        <h2>Системные логи</h2>
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              <th style={thStyle}>Пользователь</th>
+              <th style={thStyle}>Действие</th>
+              <th style={thStyle}>Детали</th>
+              <th style={thStyle}>Время</th>
+            </tr>
+          </thead>
+          <tbody>
+            {logs.map((log) => (
+              <tr key={log.id}>
+                <td style={tdStyle}>{log.username}</td>
+                <td style={tdStyle}>{log.action}</td>
+                <td style={tdStyle}>{log.details}</td>
+                <td style={tdStyle}>
+                  {new Date(log.timestamp).toLocaleString()}
                 </td>
               </tr>
             ))}
