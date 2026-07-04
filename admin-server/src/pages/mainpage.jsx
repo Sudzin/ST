@@ -262,6 +262,33 @@ export default function MainPage() {
     // }
   };
 
+  const handleToggleRole = (user) => {
+    const newRole = user.role === "admin" ? "moderator" : "admin";
+    const token = sessionStorage.getItem("token");
+
+    fetch(`http://localhost:3001/api/admin/users/${user.id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ role: newRole }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setUsers((prev) =>
+            prev.map((u) => (u.id === user.id ? { ...u, role: newRole } : u)),
+          );
+        } else {
+          alert(data.error || "Не удалось изменить роль");
+        }
+      })
+      .catch((err) => {
+        console.error("Не удалось изменить роль", err);
+      });
+  };
+
   const handleDeleteTransfer = (id) => {
     const confirmed = window.confirm("Удалить эту запись из истории?");
     if (!confirmed) return;
@@ -466,6 +493,20 @@ export default function MainPage() {
                 <td style={tdStyle}>{u.username}</td>
                 <td style={tdStyle}>{u.role}</td>
                 <td style={tdStyle}>
+                  <button
+                    onClick={() => handleToggleRole(u)}
+                    style={{
+                      background: "#1f2d4d",
+                      color: "#60a5fa",
+                      border: "none",
+                      borderRadius: "6px",
+                      padding: "6px 12px",
+                      cursor: "pointer",
+                      marginRight: "8px",
+                    }}
+                  >
+                    Сменить роль
+                  </button>
                   <button
                     onClick={() => handleDeleteUser(u.id)}
                     style={{
