@@ -72,9 +72,9 @@ const statusBadgeStyle = (status) => ({
         : "#4d451f",
   color:
     status === "completed"
-      ? "4ade80"
+      ? "#4ade80"
       : status === "failed"
-        ? "facc15"
+        ? "#facc15"
         : "#facc15",
 });
 
@@ -211,13 +211,13 @@ export default function MainPage() {
               <span
                 style={{
                   width: "10px",
-                  height: "10",
+                  height: "10px",
                   borderRadius: "50%",
-                  background: "4ade80",
+                  background: "#4ade80",
+                  flexShrink: 0,
                 }}
-              >
-                {u.username}
-              </span>
+              ></span>
+              {u.username}
             </div>
           ))}
         </div>
