@@ -142,6 +142,27 @@ export default function MainPage() {
       });
   }, []);
 
+  const handleDeleteTransfer = (id) => {
+    const confirmed = window.confirm("Удалить эту запись из истории?");
+    if (!confirmed) return;
+
+    const token = sessionStorage.getItem("token");
+
+    fetch(`http://localhost:3001/api/admin/transfers/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}, ` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setTransfer((prev) => filter((t) => t.id !== id));
+        }
+      })
+      .catch((err) => {
+        console.error("Не удалось удалить запись:", err);
+      });
+  };
+
   return (
     <div style={pageStyle}>
       <h1>Панель администратора</h1>
@@ -176,6 +197,7 @@ export default function MainPage() {
               <th style={thStyle}>Размер</th>
               <th style={thStyle}>Статус</th>
               <th style={thStyle}>Начало</th>
+              <th style={thStyle}>Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -188,6 +210,21 @@ export default function MainPage() {
                 </td>
                 <td style={tdStyle}>
                   {new Date(t.start_time).toLocaleString()}
+                </td>
+                <td style={tdStyle}>
+                  <button
+                    onClick={() => handleDeleteTransfer(t.id)}
+                    style={{
+                      background: "4d1f1f",
+                      color: "f87171",
+                      border: "none",
+                      borderRadius: "6px",
+                      padding: "6px 12px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Удалить
+                  </button>
                 </td>
               </tr>
             ))}
