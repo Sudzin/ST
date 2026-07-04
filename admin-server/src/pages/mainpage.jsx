@@ -113,7 +113,7 @@ export default function MainPage() {
       });
   }, []);
 
-  useState(() => {
+  useEffect(() => {
     const token = sessionStorage.getItem("token");
 
     fetch("http://localhost:3001/api/admin/transfers", {
@@ -156,17 +156,17 @@ export default function MainPage() {
       <div style={tableContainerStyle}>
         <h2>История передач</h2>
         <table style={tableStyle}>
-          <thread>
+          <thead>
             <th style={thStyle}>Файл</th>
             <th style={thStyle}>Размер</th>
             <th style={thStyle}>Статус</th>
             <th style={thStyle}>Начало</th>
-          </thread>
+          </thead>
           <tbody>
             {transfer.map((t) => (
               <tr key={t.id}>
-                <td style={tdStyle}>${filrmane}</td>
-                <td style={tdStyle}>${formatBytes(t.total_size)}</td>
+                <td style={tdStyle}>{t.filename}</td>
+                <td style={tdStyle}>{formatBytes(t.total_size)}</td>
                 <td style={tdStyle}>
                   <span style={statusBadgeStyle(t.status)}>{t.status}</span>
                 </td>
