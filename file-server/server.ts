@@ -447,6 +447,12 @@ async function startServer() {
             (ws as any).connectedAt = Date.now();
             ws.send(JSON.stringify({ type: "auth_success" }));
             logPacket("out", "auth_ack", 0, "auth_success");
+
+            reportToAdmin("/api/events/connection", {
+              user_id: authenticatedUser.id,
+              username: authenticatedUser.username,
+              event: "connect",
+            });
           } catch (err) {
             ws.send(
               JSON.stringify({ type: "error", message: "Invalid token" }),
@@ -620,6 +626,12 @@ async function startServer() {
           username: authenticatedUser.username,
           action: "disconnect",
           details: "User disconnected",
+        });
+
+        reportToAdmin("api/events/connection", {
+          user_id: authenticatedUser.id,
+          username: authenticatedUser.username,
+          event: "disconnect",
         });
       }
     });
