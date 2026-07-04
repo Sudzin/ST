@@ -3,6 +3,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const db = require("./src/db.js");
+const activeConnections = new Map();
 
 const app = express();
 const ADMIN_SERVER_PORT = 3001;
@@ -212,6 +213,29 @@ app.post("/api/events/transfer/path", (req, res) => {
   } catch (err) {
     console.error("[Admin server] Ошибка обновления пути:", err);
     res.status(500).json({ error: "Внутренняя ошибка" });
+  }
+});
+
+app.post("/api/events/connection", (req, res) => {
+  const key = req.headers["x-service-key"];
+  if (key !== process.env.SERVICE_KEY) {
+    return res.status(401).json({ error: "invalid secret key" });
+  }
+
+  try {
+    const { iser_id, username, event } = req.body;
+
+    if (event === "connect") {
+      activeConnections.set(user_id, { username, connectedAt: Date.now() });
+      console.log(`[Admin server] Подключение: ${username}`);
+    } else if (event === "disconnect") {
+      activeConnections.delete(user_id);
+      console.log(`[Admin server] Отключение: ${username}`);
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[Admin server] Ошибка обработки подключения", err);
+    res.json({ error: "Внутренняя ошибка" });
   }
 });
 
