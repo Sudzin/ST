@@ -95,6 +95,7 @@ export default function MainPage() {
   const [error, setError] = useState(null);
   const [transfer, setTransfer] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [onlineUser, setOnlineUser] = useState([]);
 
   useEffect(() => {
     const token = sessionStorage.getItem("token");
@@ -142,6 +143,28 @@ export default function MainPage() {
       });
   }, []);
 
+  useEffect(() => {
+    const token = sessionStorage.getItem("token");
+
+    const fetchConnectons = () => {
+      fetch("http://localhost:3001/api/admin/connections", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          setOnlineUser(data);
+        })
+        .catch((err) => {
+          console.log("Не удалось загрузить подключения: ", error);
+        });
+    };
+
+    fetchConnectons();
+    const interval = setInterval(fetchConnectons, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const handleDeleteTransfer = (id) => {
     const confirmed = window.confirm("Удалить эту запись из истории?");
     if (!confirmed) return;
@@ -166,6 +189,39 @@ export default function MainPage() {
   return (
     <div style={pageStyle}>
       <h1>Панель администратора</h1>
+
+      <div style={{ marginBottom: "30px" }}>
+        <h2>Сейчас в сети</h2>
+        {onlineUser.length === 0 && (
+          <p style={{ color: "#888" }}>Нет подключений</p>
+        )}
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          {onlineUser.map((u) => (
+            <div
+              key={u.user_id}
+              style={{
+                background: "#1e1e1e",
+                padding: "12px 20px",
+                borderRadius: "8px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
+              <span
+                style={{
+                  width: "10px",
+                  height: "10",
+                  borderRadius: "50%",
+                  background: "4ade80",
+                }}
+              >
+                {u.username}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
 
