@@ -343,7 +343,7 @@ app.delete("/api/admin/transfers/:id", authenticateAdmin, (req, res) => {
 app.get("/api/admin/logs", authenticateAdmin, (req, res) => {
   try {
     const logs = db
-      .prepare("SELECT * FROM logs ORDER BY timestamp DESC LIMIT 500")
+      .prepare("SELECT * FROM logs ORDER BY timestamp DESC, id DESC LIMIT 500")
       .all();
     res.json(logs);
   } catch (err) {
