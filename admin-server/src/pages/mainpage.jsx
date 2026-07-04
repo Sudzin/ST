@@ -233,6 +233,29 @@ export default function MainPage() {
       });
   };
 
+  const handleDeleteUser = (id) => {
+    const confirmed = window.confirm("Удалить пользователя?");
+    if (!confirmed) return;
+    const token = sessionStorage.getItem("token");
+
+    fetch(`http://localhost:3001/api/admin/users/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setUsers((prev) => prev.filter((u) => u.id !== id));
+        } else {
+          alter(data.error || "Не удалось удалить пользователя");
+        }
+      })
+      .catch((err) => {
+        console.error("Не удалось удалить пользователя");
+      });
+    // }
+  };
+
   const handleDeleteTransfer = (id) => {
     const confirmed = window.confirm("Удалить эту запись из истории?");
     if (!confirmed) return;
