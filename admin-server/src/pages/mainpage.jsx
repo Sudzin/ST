@@ -5,8 +5,8 @@ const pageStyle = {
   background: "#121212",
   minHeight: "100vh",
   padding: "20px",
-  fontFamily: "sans-serif";
-boxSizing: "border-box",
+  fontFamily: "sans-serif",
+  boxSizing: "border-box",
 };
 
 const cardsContainerStyle = {
@@ -48,18 +48,16 @@ export default function MainPage() {
       <h1>Панель администрирования</h1>
 
       {error && <p style={{ color: "red" }}>{error}</p>}
-      {!stats && error && <p>Загрузка...</p> }
+      {!stats && error && <p>Загрузка...</p>}
 
-      {
-        stats && (
-          <div style={cardsContainerStyle}>
-            <div style={cardStyle}>
-              <div>Передано файлов</div>
-              <div>{stats.totalFiles}</div>
-            </div>
+      {stats && (
+        <div style={cardsContainerStyle}>
+          <div style={cardStyle}>
+            <div>Передано файлов</div>
+            <div>{stats.totalFiles}</div>
           </div>
-        )
-      }
+        </div>
+      )}
     </div>
   );
 }
