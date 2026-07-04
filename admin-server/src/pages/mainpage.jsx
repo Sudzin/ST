@@ -144,14 +144,20 @@ export default function MainPage() {
   useEffect(() => {
     const token = sessionStorage.getItem("token");
 
-    fetch("http://localhost:3001/api/admin/logs", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => setLogs(data))
-      .catch((err) => {
-        console.error("Не удалось загрузить логи:", err);
-      });
+    const fetchLogs = () => {
+      fetch("http://localhost:3001/api/admin/logs", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => setLogs(data))
+        .catch((err) => {
+          console.error("Не удалось загрузить логи:", err);
+        });
+    };
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
