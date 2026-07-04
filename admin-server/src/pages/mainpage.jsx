@@ -9,6 +9,20 @@ const pageStyle = {
 boxSizing: "border-box",
 };
 
+const cardsContainerStyle = {
+  display: "flex",
+  gap: "20px",
+  flexWrap: "wrap",
+};
+
+const cardStyle = {
+  background: "#1e1e1e",
+  padding: "24px",
+  borderRadius: "12px",
+  minWidth: "200px",
+  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.5)",
+};
+
 export default function MainPage() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
@@ -30,15 +44,22 @@ export default function MainPage() {
   }, []);
 
   return (
-    <div
-      style={{
-        color: "#fff",
-        background: "#121212",
-        minHeight: "100vh",
-        padding: "20px",
-      }}
-    >
-      <h1>mainpage.jsx</h1>
+    <div style={pageStyle}>
+      <h1>Панель администрирования</h1>
+
+      {error && <p style={{ color: "red" }}>{error}</p>}
+      {!stats && error && <p>Загрузка...</p> }
+
+      {
+        stats && (
+          <div style={cardsContainerStyle}>
+            <div style={cardStyle}>
+              <div>Передано файлов</div>
+              <div>{stats.totalFiles}</div>
+            </div>
+          </div>
+        )
+      }
     </div>
   );
 }
