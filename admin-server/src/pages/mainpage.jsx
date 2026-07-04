@@ -150,12 +150,12 @@ export default function MainPage() {
 
     fetch(`http://localhost:3001/api/admin/transfers/${id}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${token}, ` },
+      headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          setTransfer((prev) => filter((t) => t.id !== id));
+          setTransfer((prev) => prev.filter((t) => t.id !== id));
         }
       })
       .catch((err) => {
@@ -215,8 +215,8 @@ export default function MainPage() {
                   <button
                     onClick={() => handleDeleteTransfer(t.id)}
                     style={{
-                      background: "4d1f1f",
-                      color: "f87171",
+                      background: "#4d1f1f",
+                      color: "#f87171",
                       border: "none",
                       borderRadius: "6px",
                       padding: "6px 12px",
