@@ -90,6 +90,10 @@ function formatBytes(bytes) {
   return `${value.toFixed(1)} ${units[i]}`;
 }
 
+function formatDate(timestamp) {
+  return new Date(timestamp + "Z").toLocaleString();
+}
+
 export default function MainPage() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
@@ -118,16 +122,23 @@ export default function MainPage() {
   useEffect(() => {
     const token = sessionStorage.getItem("token");
 
-    fetch("http://localhost:3001/api/admin/transfers", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setTransfer(data);
+    const fetchTransfers = () => {
+      fetch("http://localhost:3001/api/admin/transfers", {
+        headers: { Authorization: `Bearer ${token}` },
       })
-      .catch((err) => {
-        console.error("Не удалось загрузить трансферы:", err);
-      });
+        .then((res) => res.json())
+        .then((data) => {
+          setTransfer(data);
+        })
+        .catch((err) => {
+          console.error("Не удалось загрузить трансферы:", err);
+        });
+    };
+
+    fetchTransfers();
+    const interval = setInterval(fetchTransfers, 3000);
+
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -264,9 +275,7 @@ export default function MainPage() {
                 <td style={tdStyle}>
                   <span style={statusBadgeStyle(t.status)}>{t.status}</span>
                 </td>
-                <td style={tdStyle}>
-                  {new Date(t.start_time).toLocaleString()}
-                </td>
+                <td style={tdStyle}>{formatDate(t.start_time)}</td>
                 <td style={tdStyle}>
                   <button
                     onClick={() => handleDeleteTransfer(t.id)}
@@ -305,9 +314,7 @@ export default function MainPage() {
                 <td style={tdStyle}>{log.username}</td>
                 <td style={tdStyle}>{log.action}</td>
                 <td style={tdStyle}>{log.details}</td>
-                <td style={tdStyle}>
-                  {new Date(log.timestamp).toLocaleString()}
-                </td>
+                <td style={tdStyle}>{formatDate(log.timestamp)}</td>
               </tr>
             ))}
           </tbody>
