@@ -23,6 +23,17 @@ const cardStyle = {
   boxShadow: "0 8px 24px rgba(0, 0, 0, 0.5)",
 };
 
+const cardLaberStyle = {
+  color: "#888",
+  fontSize: "32px",
+  marginBottom: "8px",
+};
+
+const cardValueStyle = {
+  fontSize: "32px",
+  fontWeight: "bold",
+};
+
 export default function MainPage() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
@@ -53,8 +64,16 @@ export default function MainPage() {
       {stats && (
         <div style={cardsContainerStyle}>
           <div style={cardStyle}>
-            <div>Передано файлов</div>
-            <div>{stats.totalFiles}</div>
+            <div style={cardLabelStyle}>Передано файлов</div>
+            <div style={cardValueStyle}>{stats.totalFiles}</div>
+          </div>
+          <div style={cardStyle}>
+            <div style={cardLabelStyle}>Общий трафик</div>
+            <div style={cardValueStyle}>{formatBytes(stats.totalBytes)}</div>
+          </div>
+          <div style={cardStyle}>
+            <div style={cardLabelStyle}>Ошибок передачи</div>
+            <div style={cardValueStyle}>{stats.totalErrors}</div>
           </div>
         </div>
       )}
