@@ -202,6 +202,37 @@ export default function MainPage() {
     fetchUsers();
   }, []);
 
+  const handleCreateUser = () => {
+    if (!newUser || !newPassword) {
+      alert("Запомните логин и пароль");
+      return;
+    }
+
+    const token = sessionStorage.getItem("token");
+
+    fetch("http://localhost:3001/api/admin/users", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json ",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ newUsername, newPassword, role: "admin" }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setNewUsername("");
+          setNewPassword("");
+          fetchUsers();
+        } else {
+          alert(data.error || "Не удалось создать пользователя");
+        }
+      })
+      .catch((err) => {
+        console.error("Не удалось создать пользователя", err);
+      });
+  };
+
   const handleDeleteTransfer = (id) => {
     const confirmed = window.confirm("Удалить эту запись из истории?");
     if (!confirmed) return;
