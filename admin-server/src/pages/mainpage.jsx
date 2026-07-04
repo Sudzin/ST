@@ -34,6 +34,50 @@ const cardValueStyle = {
   fontWeight: "bold",
 };
 
+const tableContainerStyle = {
+  marginTop: "40px",
+};
+
+const tableStyle = {
+  width: "100%",
+  borderCollapse: "collapse",
+  bacground: "#1e1e1e",
+  borderRadius: "12px",
+  overflow: "hidden",
+};
+
+const thStyle = {
+  textAlign: "left",
+  padding: "12px 16px",
+  color: "#888",
+  fontSize: "14px",
+  borderBottom: "1px solid #333",
+};
+
+const tdStyle = {
+  padding: "12px 16px",
+  borderBottom: "1px solid #2a2a2a",
+};
+
+const statusBadgeStyle = (status) => ({
+  padding: "4px 10px",
+  borderRadius: "6px",
+  fontSize: "13px",
+  display: "inline-block",
+  background:
+    status === "completed"
+      ? "#1f4d2e"
+      : status === "failed"
+        ? "#4d1f1f"
+        : "#4d451f",
+  color:
+    status === "completed"
+      ? "4ade80"
+      : status === "failed"
+        ? "facc15"
+        : "#facc15",
+});
+
 function formatBytes(bytes) {
   if (!bytes) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
@@ -49,6 +93,7 @@ function formatBytes(bytes) {
 export default function MainPage() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
+  const [transfer, setTransfer] = useState([]);
 
   useEffect(() => {
     const token = sessionStorage.getItem("token");
@@ -65,6 +110,21 @@ export default function MainPage() {
       .catch((err) => {
         console.error("Не удалось загрузить статистику:", err);
         setError("Не удалось загрузить статистику");
+      });
+  }, []);
+
+  useState(() => {
+    const token = sessionStorage.getItem("token");
+
+    fetch("http://localhost:3001/api/admin/transfers", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setTransfer(data);
+      })
+      .catch((err) => {
+        console.error("Не удалось загрузить трансферы:", err);
       });
   }, []);
 
@@ -92,6 +152,32 @@ export default function MainPage() {
           </div>
         </div>
       )}
+
+      <div style={tableContainerStyle}>
+        <h2>История передач</h2>
+        <table style={tableStyle}>
+          <thread>
+            <th style={thStyle}>Файл</th>
+            <th style={thStyle}>Размер</th>
+            <th style={thStyle}>Статус</th>
+            <th style={thStyle}>Начало</th>
+          </thread>
+          <tbody>
+            {transfer.map((t) => (
+              <tr key={t.id}>
+                <td style={tdStyle}>${filrmane}</td>
+                <td style={tdStyle}>${formatBytes(t.total_size)}</td>
+                <td style={tdStyle}>
+                  <span style={statusBadgeStyle(t.status)}>{t.status}</span>
+                </td>
+                <td style={tdStyle}>
+                  {new Date(t.start_time).toLocaleString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
