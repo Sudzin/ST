@@ -10,11 +10,16 @@ export default function App() {
     setUser(userData);
   };
 
+  const handleLogout = () => {
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("user");
+    setUser(null);
+  };
+
   if (!user) {
     return <Login onLogin={handleLogin} />;
   }
-
-  return <MainPage />;
+  return <MainPage onLogout={handleLogout} />;
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(

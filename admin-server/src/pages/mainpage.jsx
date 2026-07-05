@@ -103,7 +103,10 @@ function formatDate(timestamp) {
   return new Date(timestamp + "Z").toLocaleString();
 }
 
-export default function MainPage() {
+export default function MainPage({ onLogout }) {
+  const currentUser = JSON.parse(sessionStorage.getItem("user") || "{}");
+  const isFullAdmin = currentUser.role === "admin";
+
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [transfer, setTransfer] = useState([]);
@@ -193,7 +196,7 @@ export default function MainPage() {
     const interval = setInterval(fetchConnectons, 3000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [error]);
 
   const fetchUsers = () => {
     const token = sessionStorage.getItem("token");
@@ -206,7 +209,7 @@ export default function MainPage() {
         setUsers(Array.isArray(data) ? data : []);
       })
       .catch((err) => {
-        console.error("Не удалось загрузить пользователей");
+        console.error("Не удалось загрузить пользователей", err);
       });
   };
 
@@ -267,9 +270,8 @@ export default function MainPage() {
         }
       })
       .catch((err) => {
-        console.error("Не удалось удалить пользователя");
+        console.error("Не удалось удалить пользователя", err);
       });
-    // }
   };
 
   const handleToggleRole = (user) => {
@@ -337,7 +339,28 @@ export default function MainPage() {
 
   return (
     <div style={pageStyle}>
-      <h1>Панель администратора</h1>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <h1>Панель администратора</h1>
+        <button
+          onClick={onLogout}
+          style={{
+            background: "#4d1f1f",
+            color: "#f87171",
+            border: "none",
+            borderRadius: "6px",
+            padding: "8px 16px",
+            cursor: "pointer",
+          }}
+        >
+          Выйти
+        </button>
+      </div>
 
       <div style={{ marginBottom: "30px" }}>
         <h2>Сейчас в сети</h2>
@@ -429,19 +452,21 @@ export default function MainPage() {
                   >
                     Подробнее
                   </button>
-                  <button
-                    onClick={() => handleDeleteTransfer(t.id)}
-                    style={{
-                      background: "#4d1f1f",
-                      color: "#f87171",
-                      border: "none",
-                      borderRadius: "6px",
-                      padding: "6px 12px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Удалить
-                  </button>
+                  {isFullAdmin && (
+                    <button
+                      onClick={() => handleDeleteTransfer(t.id)}
+                      style={{
+                        background: "#4d1f1f",
+                        color: "#f87171",
+                        border: "none",
+                        borderRadius: "6px",
+                        padding: "6px 12px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Удалить
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -476,47 +501,49 @@ export default function MainPage() {
       <div style={tableContainerStyle}>
         <h2>Пользователи-администраторы</h2>
 
-        <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
-          <input
-            type="text"
-            placeholder="Имя пользователя"
-            value={newUsername}
-            onChange={(e) => setNewUsername(e.target.value)}
-            style={{
-              padding: "8px 12px",
-              borderRadius: "6px",
-              border: "1px solid #333",
-              background: "#1e1e1e",
-              color: "#fff",
-            }}
-          />
-          <input
-            type="password"
-            placeholder="Пароль"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            style={{
-              padding: "8px 12px",
-              borderRadius: "6px",
-              border: "1px solid #333",
-              background: "#1e1e1e",
-              color: "#fff",
-            }}
-          />
-          <button
-            onClick={handleCreateUser}
-            style={{
-              background: "#1f4d2e",
-              color: "#4ade80",
-              border: "none",
-              borderRadius: "6px",
-              padding: "8px 16px",
-              cursor: "pointer",
-            }}
-          >
-            Создать
-          </button>
-        </div>
+        {isFullAdmin && (
+          <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+            <input
+              type="text"
+              placeholder="Имя пользователя"
+              value={newUsername}
+              onChange={(e) => setNewUsername(e.target.value)}
+              style={{
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: "1px solid #333",
+                background: "#1e1e1e",
+                color: "#fff",
+              }}
+            />
+            <input
+              type="password"
+              placeholder="Пароль"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              style={{
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: "1px solid #333",
+                background: "#1e1e1e",
+                color: "#fff",
+              }}
+            />
+            <button
+              onClick={handleCreateUser}
+              style={{
+                background: "#1f4d2e",
+                color: "#4ade80",
+                border: "none",
+                borderRadius: "6px",
+                padding: "8px 16px",
+                cursor: "pointer",
+              }}
+            >
+              Создать
+            </button>
+          </div>
+        )}
 
         <table style={tableStyle}>
           <thead>
@@ -532,33 +559,37 @@ export default function MainPage() {
                 <td style={tdStyle}>{u.username}</td>
                 <td style={tdStyle}>{u.role}</td>
                 <td style={tdStyle}>
-                  <button
-                    onClick={() => handleToggleRole(u)}
-                    style={{
-                      background: "#1f2d4d",
-                      color: "#60a5fa",
-                      border: "none",
-                      borderRadius: "6px",
-                      padding: "6px 12px",
-                      cursor: "pointer",
-                      marginRight: "8px",
-                    }}
-                  >
-                    Сменить роль
-                  </button>
-                  <button
-                    onClick={() => handleDeleteUser(u.id)}
-                    style={{
-                      background: "#4d1f1f",
-                      color: "#f87171",
-                      border: "none",
-                      borderRadius: "6px",
-                      padding: "6px 12px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Удалить
-                  </button>
+                  {isFullAdmin && (
+                    <>
+                      <button
+                        onClick={() => handleToggleRole(u)}
+                        style={{
+                          background: "#1f2d4d",
+                          color: "#60a5fa",
+                          border: "none",
+                          borderRadius: "6px",
+                          padding: "6px 12px",
+                          cursor: "pointer",
+                          marginRight: "8px",
+                        }}
+                      >
+                        Сменить роль
+                      </button>
+                      <button
+                        onClick={() => handleDeleteUser(u.id)}
+                        style={{
+                          background: "#4d1f1f",
+                          color: "#f87171",
+                          border: "none",
+                          borderRadius: "6px",
+                          padding: "6px 12px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Удалить
+                      </button>
+                    </>
+                  )}
                 </td>
               </tr>
             ))}

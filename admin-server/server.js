@@ -49,6 +49,28 @@ function authenticateAdmin(req, res, next) {
   }
 }
 
+function authenticateViewer(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ error: "Access denied. Token missing." });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+
+    if (decoded.role !== "admin" && decoded.role !== "moderator") {
+      return res.status(403).json({ error: "Access denied." });
+    }
+
+    req.user = decoded;
+    next();
+  } catch (error) {
+    return res.status(403).json({ error: "Invalid or expired token." });
+  }
+}
+
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
@@ -292,7 +314,7 @@ app.post("/api/events/connection", (req, res) => {
   }
 });
 
-app.get("/api/admin/stats", authenticateAdmin, (req, res) => {
+app.get("/api/admin/stats", authenticateViewer, (req, res) => {
   try {
     const totalBytes =
       db
@@ -323,7 +345,7 @@ app.get("/api/admin/stats", authenticateAdmin, (req, res) => {
   }
 });
 
-app.get("/api/admin/transfers", authenticateAdmin, (req, res) => {
+app.get("/api/admin/transfers", authenticateViewer, (req, res) => {
   try {
     const transfers = db
       .prepare("SELECT * FROM transfers ORDER BY start_time DESC")
@@ -334,7 +356,7 @@ app.get("/api/admin/transfers", authenticateAdmin, (req, res) => {
   }
 });
 
-app.get("/api/admin/transfers/:id", authenticateAdmin, (req, res) => {
+app.get("/api/admin/transfers/:id", authenticateViewer, (req, res) => {
   try {
     const transferId = req.params.id;
 
@@ -393,7 +415,7 @@ app.delete("/api/admin/transfers/:id", authenticateAdmin, (req, res) => {
   }
 });
 
-app.get("/api/admin/logs", authenticateAdmin, (req, res) => {
+app.get("/api/admin/logs", authenticateViewer, (req, res) => {
   try {
     const logs = db
       .prepare("SELECT * FROM logs ORDER BY timestamp DESC, id DESC LIMIT 500")
@@ -404,7 +426,7 @@ app.get("/api/admin/logs", authenticateAdmin, (req, res) => {
   }
 });
 
-app.get("/api/admin/connections", authenticateAdmin, (req, res) => {
+app.get("/api/admin/connections", authenticateViewer, (req, res) => {
   const list = Array.from(activeConnections.entries()).map(
     ([user_id, info]) => ({
       user_id,
@@ -415,7 +437,7 @@ app.get("/api/admin/connections", authenticateAdmin, (req, res) => {
   res.json(list);
 });
 
-app.get("/api/admin/users", authenticateAdmin, (req, res) => {
+app.get("/api/admin/users", authenticateViewer, (req, res) => {
   try {
     const users = db
       .prepare("SELECT id, username, role FROM users ORDER BY id ASC")
