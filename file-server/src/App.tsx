@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Login from "./components/Login";
 import UserDashboard from "./components/UserDashboard";
-import AdminDashboard from "./components/AdminDashboard";
+//import AdminDashboard from "./components/AdminDashboard";
 import { Moon, Sun } from "lucide-react";
 
 export default function App() {
@@ -100,11 +100,12 @@ export default function App() {
         </div>
       </header>
       <main className="p-6 max-w-5xl mx-auto">
-        {user.role === "admin" ? (
+        {/* {user.role === "admin" ? (
           <AdminDashboard />
         ) : (
           <UserDashboard user={user} />
-        )}
+        )} */}
+        <UserDashboard user={user} />
       </main>
     </div>
   );
