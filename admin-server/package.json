@@ -7,7 +7,7 @@
     "predev": "node scripts/seedAdmin.js",
     "dev": "concurrently \"vite\" \"node scripts/devWithTests.js\"",
     "seed": "node scripts/seedAdmin.js",
-    "test": "node --test tests"
+    "test": "node --test tests/api.test.js"
   },
   "keywords": [],
   "author": "",
