@@ -56,13 +56,16 @@ async function startServer() {
   });
 
   //  API админа
+  /*
   app.get("/api/admin/transfers", (req, res) => {
     const transfers = db
       .prepare("SELECT * FROM transfers ORDER BY start_time DESC LIMIT 50")
       .all();
     res.json(transfers);
   });
+  */
 
+  /*
   app.delete("/api/admin/transfers/:id", (req, res) => {
     const transfer = db
       .prepare("SELECT * FROM transfers WHERE id = ?")
@@ -90,7 +93,9 @@ async function startServer() {
       res.status(500).json({ error: "Failed to delete transfer" });
     }
   });
+  */
 
+  /*
   app.put("/api/admin/transfers/:id", (req, res) => {
     const { filename, status } = req.body;
     db.prepare(
@@ -98,6 +103,7 @@ async function startServer() {
     ).run(filename, status, req.params.id);
     res.json({ success: true });
   });
+  */
 
   app.get("/api/files", (req, res) => {
     const files = db
@@ -122,6 +128,7 @@ async function startServer() {
     res.download(transfer.file_path, transfer.filename);
   });
 
+  /*/
   app.get("/api/admin/transfers/:id", (req, res) => {
     const transfer = db
       .prepare("SELECT * FROM transfers WHERE id = ?")
@@ -147,14 +154,18 @@ async function startServer() {
       metrics: metrics.reverse(),
     });
   });
+  */
 
+  /*
   app.get("/api/admin/packets", (req, res) => {
     const packets = db
       .prepare("SELECT * FROM packets ORDER BY timestamp DESC LIMIT 200")
       .all();
     res.json(packets);
   });
+  */
 
+  /*
   app.put("/api/admin/logs/:id", (req, res) => {
     const { action, details } = req.body;
     db.prepare("UPDATE logs SET action = ?, details = ? WHERE id = ?").run(
@@ -164,6 +175,7 @@ async function startServer() {
     );
     res.json({ success: true });
   });
+  */
 
   app.get("/api/download-source", (req, res) => {
     console.log("[Server] Download source request received");
@@ -280,12 +292,15 @@ async function startServer() {
     }
   });
 
+  /*
   app.get("/api/admin/stats", (req, res) => {
     const stats = db.prepare("SELECT * FROM stats WHERE id = 1").get();
     const activeConnections = wss.clients.size;
     res.json({ ...stats, activeConnections });
   });
+  */
 
+  /*
   app.get("/api/admin/logs", (req, res) => {
     const logs = db
       .prepare(
@@ -299,12 +314,16 @@ async function startServer() {
       .all();
     res.json(logs);
   });
+  */
 
+  /*
   app.delete("/api/admin/logs/:id", (req, res) => {
     db.prepare("DELETE FROM logs WHERE id = ?").run(req.params.id);
     res.json({ success: true });
   });
+  */
 
+  /*
   app.put("/api/admin/logs/:id", (req, res) => {
     const { action, details, username, timestamp } = req.body;
     db.prepare(
@@ -316,6 +335,7 @@ async function startServer() {
     ).run(action, details, username, timestamp, req.params.id);
     res.json({ success: true });
   });
+  */
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
