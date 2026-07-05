@@ -43,3 +43,16 @@ test("логин с верным паролем возвращает токен"
   assert.equal(res.status, 200);
   assert.ok(data.token, "Не удалось получить токен после успешного логина");
 });
+
+test("/api/events/log без ключа возвращает 401", async () => {
+  const res = await fetch(`${BASE_URL}/api/events/log`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      user_id: 1,
+      username: "test",
+      action: "test_action",
+    }),
+  });
+  assert.equal(res.status, 401);
+});
