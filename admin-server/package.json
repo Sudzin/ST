@@ -4,9 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "predev": "node scripts/seedAdmin",
-    "dev": "concurrently \"vite\" \"nodemon server.js\"",
-    "seed": "node scripts/seedAdmin.js"
+    "predev": "node scripts/seedAdmin.js",
+    "dev": "concurrently \"vite\" \"node scripts/devWithTests.js\"",
+    "seed": "node scripts/seedAdmin.js",
+    "test": "node --test tests"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +25,7 @@
     "@vitejs/plugin-react": "^6.0.3",
     "concurrently": "^10.0.3",
     "nodemon": "^3.1.14",
-    "vite": "^8.1.3"
+    "vite": "^8.1.3",
+    "wait-on": "^9.0.10"
   }
 }
