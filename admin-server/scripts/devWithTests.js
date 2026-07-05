@@ -10,7 +10,7 @@ waitOn({ resources: ["http://localhost:3001/api/health"], timeout: 15000 })
   .then(() => {
     console.log("\n[Tests] Сервер готов, запускаю тесты...\n");
 
-    const tests = spawn("node", ["--test", "tests/api.tests.js"], {
+    const tests = spawn("node", ["--test", "tests/api.test.js"], {
       stdio: "inherit",
       shell: true,
     });
