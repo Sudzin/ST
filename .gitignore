@@ -1,0 +1,23 @@
+# Зависимости
+node_modules/
+
+# Переменные окружения
+.env
+.env.local
+
+# Бд
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# ЗАГРУЖЕННЫЕ ФАЙЛЫ
+file-server/uploads/
+
+# Сборка
+dist/
+
+# Логи/IDE
+*.log
+.vscode/
+.idea/
