@@ -1,4 +1,13 @@
 import React, { useState, useEffect } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 
 const pageStyle = {
   color: "#f5f5f5",
@@ -103,6 +112,7 @@ export default function MainPage() {
   const [users, setUsers] = useState([]);
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [selectTransfer, setSelectTransfer] = useState(null);
 
   useEffect(() => {
     const token = sessionStorage.getItem("token");
@@ -310,6 +320,21 @@ export default function MainPage() {
       });
   };
 
+  const handleViewDetails = (id) => {
+    const token = sessionStorage.getItem("token");
+
+    fetch(`http://localhost:3001/api/admin/transfers/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        setSelectTransfer(data);
+      })
+      .catch((err) => {
+        console.error("Не удалось получить детали передачи:", err);
+      });
+  };
+
   return (
     <div style={pageStyle}>
       <h1>Панель администратора</h1>
@@ -390,6 +415,20 @@ export default function MainPage() {
                 </td>
                 <td style={tdStyle}>{formatDate(t.start_time)}</td>
                 <td style={tdStyle}>
+                  <button
+                    onClick={() => handleViewDetails(t.id)}
+                    style={{
+                      background: "#1f2d4d",
+                      color: "#60a5fa",
+                      border: "none",
+                      borderRadius: "6px",
+                      padding: "6px 12px",
+                      cursor: "pointer",
+                      marginRight: "8px",
+                    }}
+                  >
+                    Подробнее
+                  </button>
                   <button
                     onClick={() => handleDeleteTransfer(t.id)}
                     style={{
@@ -526,6 +565,114 @@ export default function MainPage() {
           </tbody>
         </table>
       </div>
+
+      {selectTransfer && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 100,
+          }}
+          onClick={() => setSelectTransfer(null)}
+        >
+          <div
+            style={{
+              background: "#1e1e1e",
+              padding: "30px",
+              borderRadius: "12px",
+              width: "700px",
+              maxWidth: "90%",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <h2>{selectTransfer.transfer.filename}</h2>
+              <button
+                onClick={() => setSelectTransfer(null)}
+                style={{
+                  background: "transparent",
+                  color: "#888",
+                  border: "none",
+                  fontSize: "24px",
+                  cursor: "pointer",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <p style={{ color: "#888" }}>
+              Размер: {formatBytes(selectTransfer.transfer.total_size)} ·
+              Статус: {selectTransfer.transfer.status}
+            </p>
+
+            <h3>Скорость передачи</h3>
+
+            {selectTransfer.metrics.length === 0 ? (
+              <p style={{ color: "#888" }}>Недостаточно данных для графика</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart
+                  data={selectTransfer.metrics.map((m, index) => ({
+                    index,
+                    speedKBs: Math.round(m.speed_bps / 1024),
+                  }))}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis
+                    dataKey="index"
+                    stroke="#888"
+                    label={{
+                      value: "Секунды",
+                      position: "insideBottom",
+                      offset: -5,
+                      fill: "#888",
+                    }}
+                  />
+                  <YAxis
+                    stroke="#888"
+                    label={{
+                      value: "KB/s",
+                      angle: -90,
+                      position: "insideLeft",
+                      fill: "#888",
+                    }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "#121212",
+                      border: "1px solid #333",
+                    }}
+                    formatter={(value) => [`${value} KB/s`, "Скорость"]}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="speedKBs"
+                    stroke="#4ade80"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

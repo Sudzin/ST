@@ -345,7 +345,7 @@ app.get("/api/admin/transfers/:id", authenticateAdmin, (req, res) => {
 
     const metrics = db
       .prepare(
-        "SELECT timestamp, speed_bps, progress FROM transfer_metrics WHERE transfer_id = ? ORDER BY timestamp ASC",
+        "SELECT timestamp, speed_bps, bytes_transferred FROM transfer_metrics WHERE transfer_id = ? ORDER BY timestamp ASC",
       )
       .all(transferId);
 
