@@ -9,7 +9,10 @@ const server = spawn("npx", ["nodemon", "server.js"], {
 waitOn({ resources: ["http://localhost:3001/api/health"], timeout: 15000 })
   .then(() => {
     console.log("\n[Tests] Сервер готов, запускаю тесты...\n");
-    const tests = spawn("npm", ["test"], { stdio: "inherit", shell: true });
+    const tests = spawn("node", ["--test", "tests"], {
+      stdio: "inherit",
+      shell: true,
+    });
 
     tests.on("exit", (code) => {
       console.log(
