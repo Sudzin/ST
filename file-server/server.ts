@@ -357,7 +357,7 @@ async function startServer() {
 
     let authenticatedUser: any = null;
     let currentFileId: number | null = null;
-    let dbTransferId: number | null = null;
+    // let dbTransferId: number | null = null;
     let currentBytesReceived = 0;
     let lastMetricTime = Date.now();
     let bytesSinceLastMetric = 0;
@@ -369,28 +369,13 @@ async function startServer() {
     const flushPacketLogs = () => {
       if (packetLogBuffer.length === 0) return;
 
-      try {
-        const bufferToInsert = [...packetLogBuffer];
-        packetLogBuffer = [];
+      const bufferToSend = [...packetLogBuffer];
+      packetLogBuffer = [];
 
-        const insert = db.prepare(
-          "INSERT INTO packets (transfer_id, direction, type, size, payload_preview) VALUES (?, ?, ?, ?, ?)",
-        );
-        const insertMany = db.transaction((packets) => {
-          for (const pkt of packets) {
-            insert.run(
-              pkt.transferId,
-              pkt.direction,
-              pkt.type,
-              pkt.size,
-              pkt.preview,
-            );
-          }
-        });
-        insertMany(bufferToInsert);
-      } catch (e) {
-        console.error("Packet log flush error", e);
-      }
+      const validPackets = bufferToSend.filter((pkt) => pkt.file_id !== null);
+      if (validPackets.length === 0) return;
+
+      reportToAdmin("/api/events/packet/batch", { packets: validPackets });
     };
 
     const logPacket = (
@@ -405,11 +390,11 @@ async function startServer() {
           : payload.toString().substring(0, 50);
 
         packetLogBuffer.push({
-          transferId: dbTransferId,
+          transferId: currentFileId ? currentFileId.toString() : null,
           direction,
           type,
           size,
-          preview,
+          payload_preview: preview,
         });
 
         if (packetLogBuffer.length >= 100) {

@@ -198,6 +198,59 @@ app.post("/api/events/packet", (req, res) => {
   }
 });
 
+app.post("/api/events/packet/batch", (req, res) => {
+  const key = req.headers["x-service-key"];
+  if (key !== process.env.SERVICE_KEY) {
+    return res.status(401).json({ error: "Invalid secret key" });
+  }
+
+  try {
+    const { packets } = req.body;
+    if (!Array.isArray(packets) || packets.length === 0) {
+      return res.json({ success: true, inserted: 0 });
+    }
+
+    const findTransfer = db.prepare(
+      "SELECT id FROM transfers WHERE file_id =?",
+    );
+    const insert = db.prepare(
+      "INSERT INTO packets (transfer_id, direction, type, size, payload_preview) VALUES (?, ?, ?, ?, ?)",
+    );
+
+    const insertMany = db.transaction((items) => {
+      const transferIdCache = new Map();
+
+      for (const pkt of items) {
+        let transferId = transferIdCache.get(pkt.file_id);
+
+        if (transferId === undefined) {
+          const transfer = findTransfer.get(pkt.file_id);
+          transferId = transfer ? transfer.id : null;
+          transferIdCache.set(pkt.file_id, transferId);
+        }
+
+        if (transferId) {
+          insert.run(
+            transferId,
+            pkt.direction,
+            pkt.type,
+            pkt.size,
+            pkt.payload_preview,
+          );
+        }
+      }
+    });
+
+    insertMany(packets);
+
+    console.log(`[Admin server] Записано пакетов: ${packets.length}`);
+    res.json({ success: true, inserted: packets.length });
+  } catch (err) {
+    console.error("[Admin server] Ошибка записи пакетов", err);
+    res.status(500).json({ error: "Внутренняя ошибка" });
+  }
+});
+
 app.post("/api/events/transfer/path", (req, res) => {
   const key = req.headers["x-service-key"];
   if (key !== process.env.SERVICE_KEY) {
@@ -392,7 +445,9 @@ app.post("/api/admin/users", authenticateAdmin, async (req, res) => {
     res.json({ success: true, id: info.lastInsertRowid });
   } catch (err) {
     if (err.message && err.message.includes("UNIQUE constraint failed")) {
-      res.status(500).json({ error: "Такого пользователя не существует" });
+      return res
+        .status(400)
+        .json({ error: "Пользователь с таким именем существует" });
     }
     console.error("[Admin server] Ошибка создания пользователя:", err);
     res.status(500).json({ error: "Внутренняя ошибка" });
@@ -407,7 +462,7 @@ app.put("/api/admin/users/:id", authenticateAdmin, async (req, res) => {
     if (password) {
       const hash = await bcrypt.hash(password, 10);
       db.prepare(
-        "UPDATE users SET role = ?, password_hash = ?, WHERE id = ?",
+        "UPDATE users SET role = ?, password_hash = ? WHERE id = ?",
       ).run(role, hash, userId);
     } else {
       db.prepare("UPDATE users SET role = ? WHERE id = ?").run(role, userId);
