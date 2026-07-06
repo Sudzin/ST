@@ -512,6 +512,51 @@ app.delete("/api/admin/users/:id", authenticateAdmin, (req, res) => {
   }
 });
 
+app.get("/api/admin/ping", authenticateViewer, async (req, res) => {
+  const fileServerUrl = process.env.FILE_SERVER_URL || "http://localhost:3000";
+  const startedAt = Date.now();
+
+  try {
+    const response = await fetch(`${fileServerUrl}/api/health`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    const latency = Date.now() - startedAt;
+
+    res.json({
+      fileServer: {
+        online: response.ok,
+        latencyMs: latency,
+      },
+      adminServer: {
+        online: true,
+        uptimeSeconds: Math.floor(process.uptime()),
+      },
+    });
+  } catch (err) {
+    res.json({
+      fileServer: { online: false, latencyMs: null },
+      adminServer: {
+        online: true,
+        uptimeSeconds: Math.floor(process.uptime()),
+      },
+    });
+  }
+});
+
+app.get("/api/admin/user-stats", authenticateViewer, (req, res) => {
+  try {
+    const totalUnique = db
+      .prepare("SELECT COUNT(DISTINCT username) as count FROM logs")
+      .get().count;
+
+    res.json({ totalUniqueUsers: totalUnique });
+  } catch (err) {
+    res
+      .status(500)
+      .json({ error: "Не удалось получить статистику пользователей" });
+  }
+});
+
 app.listen(ADMIN_SERVER_PORT, () => {
   console.log(
     `[Admin server] Работает на http://localhost:${ADMIN_SERVER_PORT}`,
